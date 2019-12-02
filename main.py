@@ -28,8 +28,14 @@ if __name__ == "__main__":
                 if function == "with_video4":
                     humandetection.test_with_video(4)
             elif test == "datamanufacture":
+                if function == "process_data":
+                    datamanufacture.process_data()
                 if function == "review_data":
                     datamanufacture.review_data()
+                if function == "generate_data":
+                    datamanufacture.generate_data()
+                if function == "load_data":
+                    datamanufacture.load_data()
             elif test == "shallowrnn":
                 if function == "train_net":
                     shallowRNN.train_net()

@@ -52,7 +52,7 @@ class Decoder(tf.keras.Model):
 
 class Seq2Seq:
     def __init__(self):
-        self.tensor_length = 11
+        self.tensor_length = 28+1
         self.batch_size = 512
         self.encoder = Encoder(64, self.batch_size)
         self.decoder = Decoder(64, self.batch_size)
@@ -89,11 +89,11 @@ class Seq2Seq:
         input_tensor_train, input_tensor_val, target_tensor_train, target_tensor_val = train_test_split(
             input_tensor, target_tensor, test_size=0.2)
         steps_per_epoch = len(input_tensor_train)//self.batch_size
-        
+
         train_data = tf.data.Dataset.from_tensor_slices(
             (input_tensor_train, target_tensor_train)).shuffle(len(input_tensor_train))
         train_data = train_data.batch(self.batch_size, drop_remainder=True)
-        
+
         val_data = tf.data.Dataset.from_tensor_slices(
             (input_tensor_val, target_tensor_val)).shuffle(len(input_tensor_val))
         val_data = val_data.batch(self.batch_size, drop_remainder=True)
@@ -112,7 +112,6 @@ class Seq2Seq:
             print('Epoch {} Loss {:.4f}'.format(
                 epoch + 1, total_loss / steps_per_epoch))
             print('Time taken for 1 epoch {} sec\n'.format(time.time() - start))
-        
 
     def predict(self, inputs):
         self.checkpoint.restore(
@@ -132,11 +131,11 @@ class Seq2Seq:
     def sub_preprocess_data(self, data):
         historical_data = []
         for frame in data:
-            if data.get(frame+self.tensor_length) is None:
+            if data.get(str(int(frame)+self.tensor_length)) is None:
                 break
             vector = []
             for i in range(self.tensor_length):
-                vector.append(data.get(frame+i))
+                vector.append(data.get(str(int(frame)+i)))
             historical_data.append(vector)
 
         filtered_data = []
@@ -145,17 +144,17 @@ class Seq2Seq:
             for objs in tensor:
                 check = False
                 for obj in objs:
-                    if obj.label == 1:
+                    if obj[1] == 1:
                         check = True
-                        re.append([obj.bbox.xmin/640, obj.bbox.xmax/640,
-                                   obj.bbox.ymin/480, obj.bbox.ymax/480])
+                        re.append([obj[4]/640, obj[5]/640,
+                                   obj[6]/480, obj[7]/480])
                 if check is False:
                     re.append([0., 0., 0., 0.])
             re.append([0, 1, 0, 0])
             filtered_data.append(re.copy())
             for obj in objs:
-                re[-2] = [obj.bbox.xmin/640, obj.bbox.xmax/640,
-                          obj.bbox.ymin/480, obj.bbox.ymax/480]
+                re[-2] = [obj[4]/640, obj[5]/640,
+                          obj[6]/480, obj[7]/480]
                 re[-1] = [1, 0, 0, 0]
                 filtered_data.append(re.copy())
 
@@ -180,7 +179,7 @@ class Seq2Seq:
         labels = []
 
         for id in range(1, max_id):
-            data = dm.load_data(id)
+            data = dm.process_data(id)
             _features, _labels = self.sub_preprocess_data(data)
             features.extend(_features)
 
@@ -194,12 +193,4 @@ class Seq2Seq:
         labels = np.array(labels, dtype=np.int)
 
         dataset = (features, labels)
-
-        for index, _ in enumerate(features):
-            if index > 10:
-                break
-            print("========================")
-            print(features[index])
-            print(labels[index])
-
         return dataset

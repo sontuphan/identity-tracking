@@ -20,6 +20,10 @@ def resize(img, size):
     return img.resize(size, Image.ANTIALIAS)
 
 
+def crop(img, obj):
+    return img.crop((obj.bbox.xmin, obj.bbox.ymin, obj.bbox.xmax, obj.bbox.ymax))
+
+
 def colorize(number):
     color = hashlib.sha1(str(number).encode('utf-8')).hexdigest()
     return "#"+color[-6:]
