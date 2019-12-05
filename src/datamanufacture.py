@@ -1,43 +1,63 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import os
+import time
 import cv2 as cv
-import tensorflow as tf
 import numpy as np
-import json
+import tensorflow as tf
 
 from utils import image
 from utils.bbox import BBox, Object
 
+IMAGE_SHAPE = (224, 224)
+
 
 class DataManufacture():
-    def __init__(self, data_name="MOT17-05"):
-        self.data_dir = "data/MOT17Det/train/"
+    def __init__(self, data_name='MOT17-05', hist_len=32):
+        self.data_dir = 'data/MOT17Det/train/'
         self.data_name = data_name
-        self.src_dir = "data/train/{}/".format(self.data_name)
+        self.hist_len = hist_len
 
-        if not os.path.exists(self.src_dir):
-            os.mkdir(self.src_dir)
+    def input_pipeline(self):
+        (img_width, img_height) = IMAGE_SHAPE
+        pipeline = tf.data.Dataset.from_generator(
+            self.generator, args=[True],
+            output_types=(tf.float32, tf.uint8, tf.bool),
+            output_shapes=((self.hist_len, 4), (self.hist_len, img_width, img_height, 3), ()), )
+        return pipeline
 
-    def generate_data(self):
-        frames = self.process_data()
-        self.save_data(frames)
-        self.process_image(frames)
+    def generator(self, verbose=False):
+        frames = self.gen_data_by_frame()
+        hist_data = self.gen_data_by_hist(frames, self.hist_len)
+        label_data, labels = self.gen_data_by_label(frames, hist_data)
 
-    def process_image(self, frames):
-        for frame in frames:
-            container = self.src_dir+frame
-            if not os.path.exists(container):
-                os.mkdir(container)
-            objs = map(self.convert_array_to_object, frames.get(frame))
-            img = self.load_image(frame)
-            img = image.convert_cv_to_pil(img)
-            for obj in objs:
-                cropped_img = image.crop(img, obj)
-                resized_img = image.resize(cropped_img, (150, 150))
-                resized_img.save(container+"/"+str(obj[0])+".jpg")
+        for index, _ in enumerate(labels):
+            start = time.time()
+            objs = label_data[index]
+            cordinates = list(
+                map(lambda obj: [obj[-4]/640, obj[-3]/480, obj[-2]/640, obj[-1]/480], objs))
+            imgs = self.get_data_by_img(objs)
+            label = labels[index]
+            end = time.time()
+            if verbose:
+                print('Estimated time for one iteration: {} sec'.format(end-start))
+            yield cordinates, imgs, label
 
-    def load_image(self, img_id):
+    def get_data_by_img(self, objs):
+        img_tensor = []
+        for obj in objs:
+            img = self.process_image(obj)
+            img_tensor.append(img.tolist())
+        return img_tensor
+
+    def process_image(self, obj):
+        obj = self.convert_array_to_object(obj)
+        img = self.load_frame(obj[2])
+        img = image.convert_cv_to_pil(img)
+        cropped_img = image.crop(img, obj)
+        resized_img = image.resize(cropped_img, IMAGE_SHAPE)
+        img_arr = image.convert_pil_to_cv(resized_img)
+        return img_arr
+
+    def load_frame(self, img_id):
         name = str(img_id)
         while(len(name) < 6):
             name = "0" + name
@@ -46,56 +66,6 @@ class DataManufacture():
         data_dir = os.path.abspath(data_dir)
         frame = cv.imread(data_dir)
         return frame
-
-    def save_data(self, data):
-        data = json.dumps(data)
-        f = open("{}data.json".format(self.src_dir), "w")
-        f.write(data)
-        f.close()
-
-    def load_data(self):
-        f = open("{}data.json".format(self.src_dir), "r")
-        data = f.read()
-        f.close()
-        return json.loads(data)
-
-    def process_data(self, only_id=None):
-        data_dir = self.data_dir + self.data_name + "/gt/gt.txt"
-        data_dir = os.path.abspath(data_dir)
-        dataset = np.loadtxt(
-            data_dir,
-            delimiter=",",
-            dtype='int,int,int,int,int,int,int,float,float'
-        )
-        objs = filter(lambda line: line[6] == 1 and line[8] >= 0.2, dataset)
-        # id/label/frame/score/xmin/ymin/xmax/ymax
-        if only_id is not None:
-            objs = map(lambda line: [
-                int(line[1]),  # id
-                1 if line[1] == only_id else 0,  # label
-                int(line[0]),  # frame
-                float(line[8]),  # score
-                int(line[2]), int(line[3]),  # xmin, ymin
-                int(line[2])+int(line[4]), int(line[3])+int(line[5])]  # xmax, ymax
-                , objs)
-        else:
-            objs = map(lambda line: [
-                int(line[1]),  # id
-                int(line[1]),  # label
-                int(line[0]),  # frame
-                float(line[8]),  # score
-                int(line[2]), int(line[3]),  # xmin, ymin
-                int(line[2])+int(line[4]), int(line[3])+int(line[5])]  # xmax, ymax
-                , objs)
-
-        frames = {}
-        for obj in objs:
-            frame = str(obj[2])
-            if frames.get(frame) is None:
-                frames[frame] = []
-            frames[frame].append(obj)
-
-        return frames
 
     def convert_array_to_object(self, array):
         return Object(
@@ -107,12 +77,81 @@ class DataManufacture():
                       xmax=array[6], ymax=array[7])
         )
 
-    def review_data(self, only_id=None):
-        dataset = self.process_data(only_id)
+    def gen_data_by_label(self, frames, hist_data):
+        label_data = []
+        labels = []
+        for tensor in hist_data:
+            last_element = tensor[-1]
+            index = last_element[2] - 1
+            objs = frames[index]
+            for obj in objs:
+                feature = tensor.copy()
+                feature[-1] = obj
+                label = True if obj[0] == last_element[0] else False
+                label_data.append(feature)
+                labels.append(label)
 
-        for frame in dataset:
-            objs = map(self.convert_array_to_object, dataset.get(frame))
-            img = self.load_image(frame)
+        return label_data, labels
+
+    def gen_data_by_hist(self, frames, hist_len):
+        hist_data = []
+        for index, objs in enumerate(frames):
+            if len(frames) < index + hist_len:
+                break
+            for obj in objs:
+                tensor = []
+                for i in range(hist_len):
+                    element = self.get_obj_by_id(obj[0], frames[index + i])
+                    tensor.append(element)
+            hist_data.append(tensor)
+
+        return hist_data
+
+    def get_obj_by_id(self, id, objs):
+        for obj in objs:
+            if obj[0] == id:
+                return obj
+        return [id, id, obj[2], 0.0, 0, 0, 0, 0]
+
+    def gen_data_by_frame(self):
+        data_dir = self.data_dir + self.data_name + "/gt/gt.txt"
+        data_dir = os.path.abspath(data_dir)
+        dataset = np.loadtxt(
+            data_dir,
+            delimiter=",",
+            dtype='int,int,int,int,int,int,int,float,float'
+        )
+        objs = filter(lambda line: line[6] == 1 and line[8] >= 0.2, dataset)
+        objs = map(lambda line: [
+            int(line[1]),  # id
+            int(line[1]),  # label
+            int(line[0]),  # frame
+            float(line[8]),  # score
+            int(line[2]), int(line[3]),  # xmin, ymin
+            int(line[2])+int(line[4]), int(line[3])+int(line[5])]  # xmax, ymax
+            , objs)
+
+        objs = list(objs)
+        stop = len(objs)
+        frames = []
+        counter = 0
+        while stop > 0:
+            counter += 1
+            frame = []
+            for obj in objs:
+                if counter == obj[2]:
+                    frame.append(obj)
+                    stop -= 1
+            frames.append(frame)
+
+        return frames
+
+    def review_source(self):
+        dataset = self.gen_data_by_frame()
+
+        for index, frame in enumerate(dataset):
+            objs = map(self.convert_array_to_object, frame)
+            img = self.load_frame(index)
             if img is not None:
                 img = image.convert_cv_to_pil(img)
                 image.draw_box(img, objs)

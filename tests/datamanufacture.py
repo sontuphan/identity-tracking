@@ -1,22 +1,16 @@
 from src.datamanufacture import DataManufacture
 
 
-def process_data():
-    dm = DataManufacture("MOT17-05")
-    dm.process_data()
-
-
-def load_data():
-    dm = DataManufacture("MOT17-05")
-    data = dm.load_data()
-    print(data)
-
-
-def review_data():
-    dm = DataManufacture("MOT17-05")
-    dm.review_data()
-
-
 def generate_data():
-    dm = DataManufacture("MOT17-05")
-    dm.generate_data()
+    dm = DataManufacture("MOT17-05", 32)
+    pipeline = dm.input_pipeline()
+
+    pipeline_batch = pipeline.shuffle(64).batch(1).take(1)
+    print(pipeline_batch)
+    a, b, c = next(iter(pipeline_batch))
+    print(a)
+
+
+def review_source():
+    dm = DataManufacture("MOT17-05", 32)
+    dm.review_source()
