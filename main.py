@@ -3,7 +3,6 @@ import sys
 import tensorflow as tf
 from tests import utils, humandetection, datamanufacture
 from tests import shallowRNN, prototype, seq2seq, identitytracking
-from tests import tensorprocess
 
 tf.get_logger().setLevel('ERROR')
 
@@ -33,6 +32,8 @@ if __name__ == "__main__":
                     humandetection.test_with_video(4)
 
             elif test == "datamanufacture":
+                if func == "generate_small_data":
+                    datamanufacture.generate_small_data()
                 if func == "generate_data":
                     datamanufacture.generate_data()
                 if func == "review_source":
@@ -55,16 +56,10 @@ if __name__ == "__main__":
                     seq2seq.run_net()
 
             elif test == "identitytracking":
-                if func == "load_data":
-                    identitytracking.load_data()
                 if func == "train":
                     identitytracking.train()
                 if func == "predict":
                     identitytracking.predict()
-
-            elif test == "tensorprocess":
-                if func == "process_data":
-                    tensorprocess.process_data()
 
             else:
                 print("Error: Test file does not exist.")

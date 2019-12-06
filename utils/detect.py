@@ -41,7 +41,7 @@ def get_output(interpreter, score_threshold, image_scale=1.0):
     def make(i):
         ymin, xmin, ymax, xmax = boxes[i]
         return Object(
-            id=-1,
+            id=0,
             frame=0,
             label=int(class_ids[i]),
             score=scores[i],

@@ -32,19 +32,11 @@ class HumanDetection:
                 tflite.load_delegate(EDGETPU_SHARED_LIB)
             ])
 
-    def human_filter(self, objs):
-        def condition(obj):
-            if obj.label == 0:
-                return True
-            else:
-                return False
-        return list(filter(condition, objs))
-
     def predict(self, img):
         self.interpreter.allocate_tensors()
         scale = detect.set_input(self.interpreter, img.size,
                                  lambda size: image.resize(img, size))
         self.interpreter.invoke()
         objs = detect.get_output(self.interpreter, self.confidence, scale)
-        objs = self.human_filter(objs)
+        objs = list(filter(lambda obj: True if obj.label == 0 else False, objs))
         return objs

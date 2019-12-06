@@ -1,5 +1,6 @@
 import os
 import time
+import random
 import cv2 as cv
 import numpy as np
 import tensorflow as tf
@@ -11,10 +12,12 @@ IMAGE_SHAPE = (224, 224)
 
 
 class DataManufacture():
-    def __init__(self, data_name='MOT17-05', hist_len=32):
+    def __init__(self, data_name='MOT17-05', hist_len=32, batch_size=64):
         self.data_dir = 'data/MOT17Det/train/'
         self.data_name = data_name
         self.hist_len = hist_len
+        self.batch_size = batch_size
+        self.steps_per_epoch = None
 
     def input_pipeline(self):
         (img_width, img_height) = IMAGE_SHAPE
@@ -25,21 +28,35 @@ class DataManufacture():
         return pipeline
 
     def generator(self, verbose=False):
+        start_mining = time.time()
         frames = self.gen_data_by_frame()
         hist_data = self.gen_data_by_hist(frames, self.hist_len)
         label_data, labels = self.gen_data_by_label(frames, hist_data)
+        end_mining = time.time()
+        print('Estimated time for mining data: {} sec'.format(
+            end_mining-start_mining))
 
+        self.steps_per_epoch = len(labels)//self.batch_size
+
+        avg_time_iter = 0
         for index, _ in enumerate(labels):
-            start = time.time()
+            if verbose:
+                start_iter = time.time()
+
             objs = label_data[index]
-            cordinates = list(
+            coordinates = list(
                 map(lambda obj: [obj[-4]/640, obj[-3]/480, obj[-2]/640, obj[-1]/480], objs))
             imgs = self.get_data_by_img(objs)
             label = labels[index]
-            end = time.time()
+
             if verbose:
-                print('Estimated time for one iteration: {} sec'.format(end-start))
-            yield cordinates, imgs, label
+                end_iter = time.time()
+                avg_time_iter += end_iter-start_iter
+                if (index+1) % 10 == 0:
+                    print('Estimated time for a iteration (over {} iterations): {} sec'.format(
+                        index+1, avg_time_iter/(index+1)))
+
+            yield coordinates, imgs, label
 
     def get_data_by_img(self, objs):
         img_tensor = []
@@ -84,12 +101,18 @@ class DataManufacture():
             last_element = tensor[-1]
             index = last_element[2] - 1
             objs = frames[index]
-            for obj in objs:
-                feature = tensor.copy()
-                feature[-1] = obj
-                label = True if obj[0] == last_element[0] else False
-                label_data.append(feature)
-                labels.append(label)
+            # Import positive label
+            feature1 = tensor.copy()
+            label1 = True
+            label_data.append(feature1)
+            labels.append(label1)
+            # Import only one negative label
+            feature2 = tensor.copy()
+            label2 = False
+            while feature2[-1][0] == last_element[0]:
+                feature2[-1] = random.choice(objs)
+            label_data.append(feature2)
+            labels.append(label2)
 
         return label_data, labels
 
@@ -104,7 +127,6 @@ class DataManufacture():
                     element = self.get_obj_by_id(obj[0], frames[index + i])
                     tensor.append(element)
             hist_data.append(tensor)
-
         return hist_data
 
     def get_obj_by_id(self, id, objs):
@@ -143,7 +165,6 @@ class DataManufacture():
                     frame.append(obj)
                     stop -= 1
             frames.append(frame)
-
         return frames
 
     def review_source(self):
@@ -160,5 +181,4 @@ class DataManufacture():
                 cv.imshow('Video', img)
                 if cv.waitKey(10) & 0xFF == ord('q'):
                     break
-
         cv.destroyAllWindows()

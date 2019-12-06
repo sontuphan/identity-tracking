@@ -1,29 +1,15 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import sys
 import os
 import time
 import tensorflow as tf
 from tensorflow import keras
 import tensorflow_hub as hub
 import numpy as np
-import cv2 as cv
 
-from src.datamanufacture import DataManufacture
-from src.humandetection import HumanDetection
+from utils import image
 
 IMAGE_SHAPE = (224, 224)
-
-
-class CollectBatchStats(tf.keras.callbacks.Callback):
-    def __init__(self):
-        self.batch_losses = []
-        self.batch_acc = []
-
-    def on_train_batch_end(self, batch, logs=None):
-        self.batch_losses.append(logs['loss'])
-        self.batch_acc.append(logs['acc'])
-        self.model.reset_metrics()
 
 
 class Encoder(tf.keras.Model):
@@ -68,41 +54,33 @@ class Decoder(tf.keras.Model):
 
 class IdentityTracking:
     def __init__(self):
-        self.tensor_length = 32
-        self.batch_size = 512
+        self.tensor_length = 8
+        self.batch_size = 16
         self.encoder = Encoder(64, self.batch_size)
         self.decoder = Decoder(64, self.batch_size)
         self.optimizer = keras.optimizers.Adam()
         self.loss = keras.losses.BinaryCrossentropy()
 
-        self.data_dir = 'data/train/MOT17-05/'
-        self.cnn_file = self.data_dir + 'cnn.txt'
-        self.rnn_file = self.data_dir + 'rnn.txt'
-        self.labels_file = self.data_dir + 'labels.txt'
-
-        self.checkpoint_dir = './models/idtr/training_checkpoints'
+        self.checkpoint_dir = './models/idtr/training_checkpoints_1'
         self.checkpoint_prefix = os.path.join(self.checkpoint_dir, 'ckpt')
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
                                               encoder=self.encoder,
                                               decoder=self.decoder)
 
-    def load_data(self):
-        labels = tf.data.TextLineDataset(self.labels_file)
-        cnn_inputs = tf.data.TextLineDataset(self.cnn_file)
-        rnn_inputs = tf.data.TextLineDataset(self.rnn_file)
-
-        dataset = tf.data.Dataset.zip((labels, cnn_inputs, rnn_inputs))
-        return dataset
+        self.checkpoint.restore(
+            tf.train.latest_checkpoint(self.checkpoint_dir))
+        self.feature_extractor = self.load_feature_extractor()
 
     def load_feature_extractor(self):
         feature_extractor_url = 'https://tfhub.dev/google/tf2-preview/mobilenet_v2/feature_vector/2'
         feature_extractor_layer = hub.KerasLayer(feature_extractor_url,
-                                                 input_shape=(224, 224, 3))
+                                                 input_shape=(IMAGE_SHAPE+(3,)))
         feature_extractor_layer.trainable = False
-
         return tf.keras.Sequential([feature_extractor_layer])
 
     def loss_function(self, real, pred):
+        real = tf.reshape(real, [self.batch_size, 1])
+        pred = tf.reshape(pred, [self.batch_size, 1])
         loss = self.loss(real, pred)
         return tf.reduce_mean(loss)
 
@@ -121,34 +99,51 @@ class IdentityTracking:
         self.optimizer.apply_gradients(zip(gradients, variables))
         return loss
 
-    def train(self, dataset, epochs=10):
-        (input_tensor, target_tensor) = dataset
-        input_tensor_train, input_tensor_val, target_tensor_train, target_tensor_val = train_test_split(
-            input_tensor, target_tensor, test_size=0.2)
-        steps_per_epoch = len(input_tensor_train)//self.batch_size
-
-        train_data = tf.data.Dataset.from_tensor_slices(
-            (input_tensor_train, target_tensor_train)).shuffle(len(input_tensor_train))
-        train_data = train_data.batch(self.batch_size, drop_remainder=True)
-
-        val_data = tf.data.Dataset.from_tensor_slices(
-            (input_tensor_val, target_tensor_val)).shuffle(len(input_tensor_val))
-        val_data = val_data.batch(self.batch_size, drop_remainder=True)
-
+    def train(self, dataset, steps_per_epoch, epochs=10):  # 74
         for epoch in range(epochs):
             start = time.time()
             init_state = self.encoder.initialize_hidden_state()
             total_loss = 0
-            for (batch, (x, y)) in enumerate(train_data.take(steps_per_epoch)):
+            for (batch, (bbox, cnn_inputs, y)) in enumerate(dataset.take(steps_per_epoch)):
+                cnn_inputs = tf.reshape(
+                    cnn_inputs, [self.batch_size*self.tensor_length, 224, 224, 3])
+                cnn_inputs = np.array(cnn_inputs)/255.0
+                logits = self.feature_extractor(cnn_inputs)
+                logits = tf.reshape(
+                    logits, [self.batch_size, self.tensor_length, 1280])
+                x = tf.concat([bbox, logits], 2)
+
                 batch_loss = self.train_step(x, y, init_state)
                 total_loss += batch_loss
-                if batch % 100 == 0:
+                if batch % self.batch_size == 0:
                     print('Epoch {} Batch {} Loss {:.4f}'.format(
                         epoch + 1, batch, batch_loss.numpy()))
             self.checkpoint.save(file_prefix=self.checkpoint_prefix)
+            end = time.time()
             print('Epoch {} Loss {:.4f}'.format(
                 epoch + 1, total_loss / steps_per_epoch))
-            print('Time taken for 1 epoch {} sec\n'.format(time.time() - start))
+            print('Time taken for 1 epoch {} sec\n'.format(end - start))
 
-    def predict(self):
-        pass
+    def predict(self, inputs):
+        x = []
+        for (obj, img) in inputs:
+            bbox = np.array(
+                [obj.bbox.xmin/640, obj.bbox.ymin/480, obj.bbox.xmax/640, obj.bbox.ymax/480])
+            cropped_img = image.crop(img, obj)
+            resized_img = image.resize(cropped_img, IMAGE_SHAPE)
+            img_arr = image.convert_pil_to_cv(resized_img)/255.0
+            logits = self.feature_extractor(np.array([img_arr]))
+            logits = tf.reshape(logits, [1280])
+            rnn_cell_input = tf.concat([bbox, logits], 0)
+            x.append(rnn_cell_input)
+        x = tf.stack([x])
+
+        (input_len, _, _) = x.shape
+        encoder_input, decoder_input = tf.split(
+            x, [self.tensor_length-1, 1], axis=1)
+        encoder_state = tf.zeros((input_len, self.encoder.units))
+        _, encoder_state = self.encoder(encoder_input, encoder_state)
+        decoder_state = encoder_state
+        predictions, _ = self.decoder(decoder_input, decoder_state)
+        predictions = tf.reshape(predictions, [-1])
+        return predictions
