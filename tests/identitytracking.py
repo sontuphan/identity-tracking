@@ -17,8 +17,8 @@ def train():
     dm = DataManufacture("MOT17-05", idtr.tensor_length, idtr.batch_size)
     pipeline = dm.input_pipeline()
 
-    dataset = pipeline.batch(idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 103, 10)
+    dataset = pipeline.shuffle(128).batch(idtr.batch_size, drop_remainder=True)
+    idtr.train(dataset, 51, 5)
 
 
 def predict():

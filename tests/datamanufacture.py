@@ -12,8 +12,8 @@ def generate_small_data():
     print(rnn_inputs.shape, cnn_inputs.shape, labels.shape)
 
 def generate_data():
-    batch_size = 64
-    dm = DataManufacture("MOT17-05", 32, batch_size)
+    batch_size = 32
+    dm = DataManufacture("MOT17-05", 16, batch_size)
     pipeline = dm.input_pipeline()
 
     dataset = pipeline.shuffle(128).batch(batch_size, drop_remainder=True)

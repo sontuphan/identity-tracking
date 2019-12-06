@@ -54,8 +54,8 @@ class Decoder(tf.keras.Model):
 
 class IdentityTracking:
     def __init__(self):
-        self.tensor_length = 8
-        self.batch_size = 16
+        self.tensor_length = 16
+        self.batch_size = 32
         self.encoder = Encoder(64, self.batch_size)
         self.decoder = Decoder(64, self.batch_size)
         self.optimizer = keras.optimizers.Adam()
@@ -107,7 +107,6 @@ class IdentityTracking:
             for (batch, (bbox, cnn_inputs, y)) in enumerate(dataset.take(steps_per_epoch)):
                 cnn_inputs = tf.reshape(
                     cnn_inputs, [self.batch_size*self.tensor_length, 224, 224, 3])
-                cnn_inputs = np.array(cnn_inputs)/255.0
                 logits = self.feature_extractor(cnn_inputs)
                 logits = tf.reshape(
                     logits, [self.batch_size, self.tensor_length, 1280])
@@ -127,6 +126,7 @@ class IdentityTracking:
     def predict(self, inputs):
         x = []
         for (obj, img) in inputs:
+            start = time.time()
             bbox = np.array(
                 [obj.bbox.xmin/640, obj.bbox.ymin/480, obj.bbox.xmax/640, obj.bbox.ymax/480])
             cropped_img = image.crop(img, obj)
@@ -136,6 +136,8 @@ class IdentityTracking:
             logits = tf.reshape(logits, [1280])
             rnn_cell_input = tf.concat([bbox, logits], 0)
             x.append(rnn_cell_input)
+            end = time.time()
+            print('Estimated time for a iteraction: {:.4f} sec'.format(end-start))
         x = tf.stack([x])
 
         (input_len, _, _) = x.shape

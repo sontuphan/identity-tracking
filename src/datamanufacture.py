@@ -23,18 +23,14 @@ class DataManufacture():
         (img_width, img_height) = IMAGE_SHAPE
         pipeline = tf.data.Dataset.from_generator(
             self.generator, args=[True],
-            output_types=(tf.float32, tf.uint8, tf.bool),
+            output_types=(tf.float32, tf.float32, tf.bool),
             output_shapes=((self.hist_len, 4), (self.hist_len, img_width, img_height, 3), ()), )
         return pipeline
 
     def generator(self, verbose=False):
-        start_mining = time.time()
         frames = self.gen_data_by_frame()
         hist_data = self.gen_data_by_hist(frames, self.hist_len)
         label_data, labels = self.gen_data_by_label(frames, hist_data)
-        end_mining = time.time()
-        print('Estimated time for mining data: {} sec'.format(
-            end_mining-start_mining))
 
         self.steps_per_epoch = len(labels)//self.batch_size
 
@@ -53,7 +49,7 @@ class DataManufacture():
                 end_iter = time.time()
                 avg_time_iter += end_iter-start_iter
                 if (index+1) % 10 == 0:
-                    print('Estimated time for a iteration (over {} iterations): {} sec'.format(
+                    print('Estimated time for a iteration (over {} iterations): {:.4f} sec'.format(
                         index+1, avg_time_iter/(index+1)))
 
             yield coordinates, imgs, label
@@ -62,7 +58,7 @@ class DataManufacture():
         img_tensor = []
         for obj in objs:
             img = self.process_image(obj)
-            img_tensor.append(img.tolist())
+            img_tensor.append(img)
         return img_tensor
 
     def process_image(self, obj):
@@ -72,7 +68,7 @@ class DataManufacture():
         cropped_img = image.crop(img, obj)
         resized_img = image.resize(cropped_img, IMAGE_SHAPE)
         img_arr = image.convert_pil_to_cv(resized_img)
-        return img_arr
+        return img_arr/255.0
 
     def load_frame(self, img_id):
         name = str(img_id)
