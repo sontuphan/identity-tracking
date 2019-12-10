@@ -65,6 +65,16 @@ class BBox(collections.namedtuple('BBox', ['xmin', 'ymin', 'xmax', 'ymax'])):
         return area / (a.area + b.area - area)
 
 
+def create_empty_obj():
+    return Object(
+        id=0,
+        frame=0,
+        label=0,
+        score=0,
+        bbox=BBox(xmin=0, ymin=0, xmax=0, ymax=0)
+    )
+
+
 def bbox_to_centroid(bbox):
     return (int((bbox.xmin+bbox.xmax)/2),
             int((bbox.ymin+bbox.ymax)/2))

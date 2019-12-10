@@ -1,6 +1,7 @@
 import os
 import time
 import random
+import configparser
 import cv2 as cv
 import numpy as np
 import tensorflow as tf
@@ -8,7 +9,8 @@ import tensorflow as tf
 from utils import image
 from utils.bbox import BBox, Object
 
-IMAGE_SHAPE = (224, 224)
+FRAME_SHAPE = (640, 480)
+IMAGE_SHAPE = (96, 96)
 
 
 class DataManufacture():
@@ -17,7 +19,11 @@ class DataManufacture():
         self.data_name = data_name
         self.hist_len = hist_len
         self.batch_size = batch_size
-        self.steps_per_epoch = None
+
+        config = configparser.ConfigParser()
+        config.read(self.data_dir + self.data_name + '/seqinfo.ini')
+        self.metadata = (int(config['Sequence']['imWidth']),
+                         int(config['Sequence']['imHeight']))
 
     def input_pipeline(self):
         (img_width, img_height) = IMAGE_SHAPE
@@ -32,8 +38,6 @@ class DataManufacture():
         hist_data = self.gen_data_by_hist(frames, self.hist_len)
         label_data, labels = self.gen_data_by_label(frames, hist_data)
 
-        self.steps_per_epoch = len(labels)//self.batch_size
-
         avg_time_iter = 0
         for index, _ in enumerate(labels):
             if verbose:
@@ -41,14 +45,17 @@ class DataManufacture():
 
             objs = label_data[index]
             coordinates = list(
-                map(lambda obj: [obj[-4]/640, obj[-3]/480, obj[-2]/640, obj[-1]/480], objs))
+                map(lambda obj: [obj[-4]/FRAME_SHAPE[0],
+                                 obj[-3]/FRAME_SHAPE[1],
+                                 obj[-2]/FRAME_SHAPE[0],
+                                 obj[-1]/FRAME_SHAPE[1]], objs))
             imgs = self.get_data_by_img(objs)
             label = labels[index]
 
             if verbose:
                 end_iter = time.time()
                 avg_time_iter += end_iter-start_iter
-                if (index+1) % 10 == 0:
+                if (index+1) % 100 == 0:
                     print('Estimated time for a iteration (over {} iterations): {:.4f} sec'.format(
                         index+1, avg_time_iter/(index+1)))
 
@@ -64,7 +71,6 @@ class DataManufacture():
     def process_image(self, obj):
         obj = self.convert_array_to_object(obj)
         img = self.load_frame(obj[2])
-        img = image.convert_cv_to_pil(img)
         cropped_img = image.crop(img, obj)
         resized_img = image.resize(cropped_img, IMAGE_SHAPE)
         img_arr = image.convert_pil_to_cv(resized_img)
@@ -78,7 +84,12 @@ class DataManufacture():
         data_dir = self.data_dir + self.data_name + "/img1/"+name
         data_dir = os.path.abspath(data_dir)
         frame = cv.imread(data_dir)
-        return frame
+        if frame is not None:
+            img = image.convert_cv_to_pil(frame)
+            img = image.resize(img, FRAME_SHAPE)
+            return img
+        else:
+            return None
 
     def convert_array_to_object(self, array):
         return Object(
@@ -140,13 +151,18 @@ class DataManufacture():
             dtype='int,int,int,int,int,int,int,float,float'
         )
         objs = filter(lambda line: line[6] == 1 and line[8] >= 0.2, dataset)
+
+        width_scale = self.metadata[0]/FRAME_SHAPE[0]
+        height_scale = self.metadata[1]/FRAME_SHAPE[1]
         objs = map(lambda line: [
             int(line[1]),  # id
             int(line[1]),  # label
             int(line[0]),  # frame
             float(line[8]),  # score
-            int(line[2]), int(line[3]),  # xmin, ymin
-            int(line[2])+int(line[4]), int(line[3])+int(line[5])]  # xmax, ymax
+            int(line[2]/width_scale),  # xmin
+            int(line[3]/height_scale),  # ymin
+            int(line[2]/width_scale)+int(line[4]/width_scale),  # xmax
+            int(line[3]/height_scale)+int(line[5]/height_scale)]  # ymax
             , objs)
 
         objs = list(objs)
@@ -170,7 +186,6 @@ class DataManufacture():
             objs = map(self.convert_array_to_object, frame)
             img = self.load_frame(index)
             if img is not None:
-                img = image.convert_cv_to_pil(img)
                 image.draw_box(img, objs)
                 img = image.convert_pil_to_cv(img)
 
