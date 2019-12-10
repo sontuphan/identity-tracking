@@ -1,7 +1,5 @@
 import os
 import cv2 as cv
-import tensorflow as tf
-import numpy as np
 
 from utils import image
 from src.identitytracking import IdentityTracking
@@ -9,16 +7,29 @@ from src.datamanufacture import DataManufacture
 from src.humandetection import HumanDetection
 
 VIDEO3 = os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "../data/video/MOT17-03-SDP.mp4")
+VIDEO5 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-05-SDP.mp4")
 
 
 def train():
     idtr = IdentityTracking()
-    dm = DataManufacture("MOT17-05", idtr.tensor_length, idtr.batch_size)
-    pipeline = dm.input_pipeline()
+    # names = ['MOT17-05']
+    names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
+             'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
-    dataset = pipeline.shuffle(128).batch(idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 51, 5)
+    pipeline = None
+    for name in names:
+        generator = DataManufacture(name, idtr.tensor_length, idtr.batch_size)
+        next_pipeline = generator.input_pipeline()
+        if pipeline is None:
+            pipeline = next_pipeline
+        else:
+            pipeline = pipeline.concatenate(next_pipeline)
+
+    dataset = pipeline.shuffle(128).batch(
+        idtr.batch_size, drop_remainder=True)
+    idtr.train(dataset, 5)
 
 
 def predict():
@@ -29,7 +40,7 @@ def predict():
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
-    is_first_frame = True
+    is_first_frames = idtr.tensor_length
     histories = []
     while(cap.isOpened()):
         ret, frame = cap.read()
@@ -38,26 +49,30 @@ def predict():
             break
 
         img = image.convert_cv_to_pil(frame)
+        img = image.resize(img, (640, 480))
         objs = hd.predict(img)
 
-        if is_first_frame:
-            is_first_frame = False
-            for _ in range(idtr.tensor_length):
-                histories.append((objs[0], img))
+        if is_first_frames > 0:
+            is_first_frames -= 1
+            histories.append((objs[1], img))
         else:
-            predictions = np.array([])
+            inputs = []
             for obj in objs:
-                inputs = histories.copy()
-                inputs.pop(0)
-                inputs.append((obj, img))
-                prediction = idtr.predict(inputs).numpy()
-                predictions = np.concatenate((predictions, prediction), axis=0)
-            print("==============================")
+                tensor = histories.copy()
+                tensor.pop(0)
+                tensor.append((obj, img))
+                inputs.append(tensor)
+            predictions, argmax = idtr.predict(inputs)
+            predictions = predictions.numpy()
+            argmax = argmax.numpy()
+            if predictions[argmax] >= 0.2:
+                obj = objs[argmax]
+                histories.pop(0)
+                histories.append((obj, img))
+                image.draw_box(img, [obj])
+
+            print("==================")
             print(predictions)
-            obj = objs[np.argmax(predictions)]
-            histories.pop(0)
-            histories.append((obj, img))
-            image.draw_box(img, [obj])
 
         img = image.convert_pil_to_cv(img)
         cv.imshow('Video', img)
