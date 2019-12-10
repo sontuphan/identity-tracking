@@ -40,9 +40,7 @@ class Decoder(tf.keras.Model):
                                        return_sequences=True,
                                        return_state=True,
                                        recurrent_initializer='glorot_uniform')
-        self.dense = tf.keras.layers.Dense(512, activation='relu')
-        self.dense = tf.keras.layers.Dense(128, activation='relu')
-        self.dense = tf.keras.layers.Dense(32, activation='relu')
+        self.dense = tf.keras.layers.Dense(64, activation='relu')
         self.classifier = tf.keras.layers.Dense(1, activation='sigmoid')
 
     def call(self, x, state):
@@ -54,10 +52,10 @@ class Decoder(tf.keras.Model):
 
 class IdentityTracking:
     def __init__(self):
-        self.tensor_length = 8
+        self.tensor_length = 10
         self.batch_size = 32
-        self.encoder = Encoder(64, self.batch_size)
-        self.decoder = Decoder(64, self.batch_size)
+        self.encoder = Encoder(512, self.batch_size)
+        self.decoder = Decoder(512, self.batch_size)
         self.optimizer = keras.optimizers.Adam()
         self.loss = keras.losses.BinaryCrossentropy()
 
@@ -91,7 +89,6 @@ class IdentityTracking:
             encoder_input, decoder_input = tf.split(
                 x, [self.tensor_length-1, 1], axis=1)
             _, encoder_state = self.encoder(encoder_input, encoder_state)
-
             decoder_state = encoder_state
             predictions, _ = self.decoder(decoder_input, decoder_state)
             loss = self.loss_function(y, predictions)

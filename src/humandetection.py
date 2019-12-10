@@ -11,7 +11,7 @@ MODELS = os.path.join(os.path.dirname(
 
 
 class HumanDetection:
-    def __init__(self, confidence=0.4):
+    def __init__(self, confidence=0.6):
         self.labels = self.load_labels()
         self.interpreter = self.make_interpreter(MODELS)
         self.confidence = confidence
