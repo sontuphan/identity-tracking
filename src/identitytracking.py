@@ -40,6 +40,7 @@ class Decoder(tf.keras.Model):
                                        return_sequences=True,
                                        return_state=True,
                                        recurrent_initializer='glorot_uniform')
+        self.dense = tf.keras.layers.Dense(512, activation='relu')
         self.dense = tf.keras.layers.Dense(64, activation='relu')
         self.classifier = tf.keras.layers.Dense(1, activation='sigmoid')
 
@@ -88,8 +89,7 @@ class IdentityTracking:
         with tf.GradientTape() as tape:
             encoder_input, decoder_input = tf.split(
                 x, [self.tensor_length-1, 1], axis=1)
-            _, encoder_state = self.encoder(encoder_input, encoder_state)
-            decoder_state = encoder_state
+            _, decoder_state = self.encoder(encoder_input, encoder_state)
             predictions, _ = self.decoder(decoder_input, decoder_state)
             loss = self.loss_function(y, predictions)
         variables = self.encoder.trainable_variables + self.decoder.trainable_variables
