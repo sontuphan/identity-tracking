@@ -1,7 +1,7 @@
 import sys
 
 import tensorflow as tf
-from tests import utils, humandetection, datamanufacture
+from tests import utils, humandetection, datamanufacture, classification
 from tests import shallowRNN, prototype, seq2seq, identitytracking
 
 tf.get_logger().setLevel('ERROR')
@@ -60,6 +60,12 @@ if __name__ == "__main__":
                     identitytracking.train()
                 if func == "predict":
                     identitytracking.predict()
+
+            elif test == "classification":
+                if func == "train":
+                    classification.train()
+                if func == "predict":
+                    classification.predict()
 
             else:
                 print("Error: Test file does not exist.")

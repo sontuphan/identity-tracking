@@ -26,10 +26,12 @@ class Encoder(tf.keras.Model):
                                          return_sequences=True,
                                          return_state=True,
                                          recurrent_initializer='glorot_uniform')
+        self.dense = tf.keras.layers.Dense(512, activation='relu')
 
     def call(self, x, state):
-        gru_output, hidden_state_1 = self.gru_1(x, initial_state=state)
-        _, hidden_state_2 = self.gru_2(gru_output, initial_state=state)
+        gru_output_1, hidden_state_1 = self.gru_1(x, initial_state=state)
+        gru_output_2, hidden_state_2 = self.gru_2(
+            gru_output_1, initial_state=state)
         return hidden_state_1, hidden_state_2
 
     def initialize_hidden_state(self):
@@ -76,9 +78,9 @@ class IdentityTracking:
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
                                               encoder=self.encoder,
                                               decoder=self.decoder)
-
         self.checkpoint.restore(
             tf.train.latest_checkpoint(self.checkpoint_dir))
+            
         self.feature_extractor = self.load_feature_extractor()
 
     def load_feature_extractor(self):
