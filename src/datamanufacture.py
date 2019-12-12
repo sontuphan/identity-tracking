@@ -28,7 +28,7 @@ class DataManufacture():
     def input_pipeline(self):
         (img_width, img_height) = IMAGE_SHAPE
         pipeline = tf.data.Dataset.from_generator(
-            self.generator, args=[True],
+            self.generator, args=[False],
             output_types=(tf.float32, tf.float32, tf.bool),
             output_shapes=((self.hist_len, 4), (self.hist_len, img_width, img_height, 3), ()), )
         return pipeline
