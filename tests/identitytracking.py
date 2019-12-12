@@ -7,7 +7,7 @@ from src.datamanufacture import DataManufacture
 from src.humandetection import HumanDetection
 
 VIDEO0 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/3rd-camera.mp4")
+    os.path.abspath(__file__)), "../data/video/chaplin.mp4")
 VIDEO5 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-05-SDP.mp4")
 VIDEO6 = os.path.join(os.path.dirname(
@@ -40,7 +40,7 @@ def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO9)
+    cap = cv.VideoCapture(VIDEO0)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
