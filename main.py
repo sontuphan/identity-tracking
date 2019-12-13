@@ -1,7 +1,7 @@
 import sys
 
 import tensorflow as tf
-from tests import utils, humandetection, datamanufacture, classification
+from tests import utils, datamanufacture
 from tests import shallowRNN, prototype, seq2seq, identitytracking
 
 tf.get_logger().setLevel('ERROR')
@@ -18,18 +18,6 @@ if __name__ == "__main__":
                     utils.resize_image()
                 if func == "crop_image":
                     utils.crop_image()
-
-            elif test == "humandetection":
-                if func == "with_camera":
-                    humandetection.test_with_camera()
-                if func == "with_video1":
-                    humandetection.test_with_video(1)
-                if func == "with_video2":
-                    humandetection.test_with_video(2)
-                if func == "with_video3":
-                    humandetection.test_with_video(3)
-                if func == "with_video4":
-                    humandetection.test_with_video(4)
 
             elif test == "datamanufacture":
                 if func == "generate_small_data":
@@ -60,12 +48,6 @@ if __name__ == "__main__":
                     identitytracking.train()
                 if func == "predict":
                     identitytracking.predict()
-
-            elif test == "classification":
-                if func == "train":
-                    classification.train()
-                if func == "predict":
-                    classification.predict()
 
             else:
                 print("Error: Test file does not exist.")
