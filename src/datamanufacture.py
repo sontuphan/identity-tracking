@@ -159,11 +159,13 @@ class DataManufacture():
             int(line[1]),  # label
             int(line[0]),  # frame
             float(line[8]),  # score
-            int(line[2]/width_scale),  # xmin
-            int(line[3]/height_scale),  # ymin
-            int(line[2]/width_scale)+int(line[4]/width_scale),  # xmax
-            int(line[3]/height_scale)+int(line[5]/height_scale)]  # ymax
-            , objs)
+            int((line[2] if line[2] > 0 else 0)/width_scale),  # xmin
+            int((line[3] if line[3] > 0 else 0)/height_scale),  # ymin
+            int((line[2]+line[4])/width_scale if (line[2]+line[4]) / \
+                width_scale < FRAME_SHAPE[0] else FRAME_SHAPE[0]-1),  # xmax
+            int((line[3]+line[5])/height_scale if (line[3]+line[5]) / \
+                height_scale < FRAME_SHAPE[1] else FRAME_SHAPE[1]-1)  # ymax
+        ], objs)
 
         objs = list(objs)
         stop = len(objs)

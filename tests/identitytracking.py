@@ -38,7 +38,7 @@ def train():
 
     dataset = pipeline.shuffle(128).batch(
         idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 10)
+    idtr.train(dataset, 20)
 
 
 def predict():

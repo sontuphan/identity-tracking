@@ -162,7 +162,8 @@ class IdentityTracking:
             except StopIteration:
                 pass
 
-            self.checkpoint.save(file_prefix=self.checkpoint_prefix)
+            if (epoch+1) % 5 == 0:
+                self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
             end = time.time()
             print('Steps per epoch: {}'.format(steps_per_epoch))
