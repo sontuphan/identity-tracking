@@ -1,5 +1,6 @@
 import os
 import cv2 as cv
+import numpy as np
 
 from utils import image
 from src.identitytracking import IdentityTracking, FeaturesExtractor, DimensionExtractor
@@ -87,6 +88,16 @@ def predict():
 
         # Test human detection
         # image.draw_box(img, objs)
+        # Test historical frames
+        his_img = None
+        for history in histories:
+            (_obj, _img) = history
+            if his_img is None:
+                his_img = image.convert_pil_to_cv(_img)
+            else:
+                his_img = np.concatenate(
+                    (his_img, image.convert_pil_to_cv(_img)), axis=1)
+        cv.imshow('History', his_img)
 
         img = image.convert_pil_to_cv(img)
         cv.imshow('Video', img)
