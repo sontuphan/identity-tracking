@@ -60,6 +60,8 @@ if __name__ == "__main__":
                     identitytracking.train()
                 if func == "predict":
                     identitytracking.predict()
+                if func == "summarize":
+                    identitytracking.summarize()
 
             elif test == "classification":
                 if func == "train":

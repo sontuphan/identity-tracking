@@ -2,7 +2,7 @@ import os
 import cv2 as cv
 
 from utils import image
-from src.identitytracking import IdentityTracking
+from src.identitytracking import IdentityTracking, FeaturesExtractor, DimensionExtractor
 from src.datamanufacture import DataManufacture
 from src.humandetection import HumanDetection
 
@@ -16,11 +16,15 @@ VIDEO9 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-09-FRCNN.mp4")
 
 
+def summarize():
+    pass
+
+
 def train():
     idtr = IdentityTracking()
-    # names = ['MOT17-05']
-    names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
-             'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
+    names = ['MOT17-05']
+    # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
+    #          'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
     pipeline = None
     for name in names:
@@ -33,14 +37,14 @@ def train():
 
     dataset = pipeline.shuffle(128).batch(
         idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 10)
+    idtr.train(dataset, 50)
 
 
 def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO6)
+    cap = cv.VideoCapture(VIDEO0)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
