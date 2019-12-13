@@ -48,6 +48,8 @@ if __name__ == "__main__":
                     identitytracking.train()
                 if func == "predict":
                     identitytracking.predict()
+                if func == "summarize":
+                    identitytracking.summarize()
 
             else:
                 print("Error: Test file does not exist.")
