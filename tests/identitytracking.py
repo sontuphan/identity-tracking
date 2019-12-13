@@ -38,18 +38,18 @@ def train():
 
     dataset = pipeline.shuffle(128).batch(
         idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 50)
+    idtr.train(dataset, 10)
 
 
 def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO0)
+    cap = cv.VideoCapture(VIDEO5)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
-    is_first_frames = idtr.tensor_length
+    is_first_frames = True
     histories = []
     while(cap.isOpened()):
         ret, frame = cap.read()
@@ -61,11 +61,10 @@ def predict():
         img = image.resize(img, (640, 480))
         objs = hd.predict(img)
 
-        if is_first_frames > 0:
-            index = 0
-            if len(objs) > index:
-                is_first_frames -= 1
-                histories.append((objs[index], img))
+        if is_first_frames:
+            is_first_frames = False
+            for _ in range(idtr.tensor_length):
+                histories.append((objs[1], img))
         else:
             inputs = []
             for obj in objs:
@@ -80,7 +79,7 @@ def predict():
                 if predictions[argmax] >= 0.4:
                     obj = objs[argmax]
                     histories.pop(0)
-                    histories.append((obj, img))
+                    histories.append((obj, img.copy()))
                     image.draw_box(img, [obj])
 
                 print("==================")
@@ -93,10 +92,14 @@ def predict():
         for history in histories:
             (_obj, _img) = history
             if his_img is None:
-                his_img = image.convert_pil_to_cv(_img)
+                cropped_img = image.crop(_img, _obj)
+                resized_img = image.resize(cropped_img, (96, 96))
+                his_img = image.convert_pil_to_cv(resized_img)
             else:
+                cropped_img = image.crop(_img, _obj)
+                resized_img = image.resize(cropped_img, (96, 96))
                 his_img = np.concatenate(
-                    (his_img, image.convert_pil_to_cv(_img)), axis=1)
+                    (his_img, image.convert_pil_to_cv(resized_img)), axis=1)
         cv.imshow('History', his_img)
 
         img = image.convert_pil_to_cv(img)
