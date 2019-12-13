@@ -26,18 +26,12 @@ class Encoder(tf.keras.Model):
                                          return_sequences=True,
                                          return_state=True,
                                          recurrent_initializer='glorot_uniform')
-        self.gru_3 = tf.keras.layers.GRU(self.units,
-                                         return_sequences=True,
-                                         return_state=True,
-                                         recurrent_initializer='glorot_uniform')
 
     def call(self, x, state):
         gru_output_1, hidden_state_1 = self.gru_1(x, initial_state=state)
-        gru_output_2, hidden_state_2 = self.gru_2(
+        _, hidden_state_2 = self.gru_2(
             gru_output_1, initial_state=state)
-        _, hidden_state_3 = self.gru_3(
-            gru_output_2, initial_state=state)
-        return hidden_state_1, hidden_state_2, hidden_state_3
+        return hidden_state_1, hidden_state_2
 
     def initialize_hidden_state(self):
         return tf.zeros((self.batch_size, self.units))
@@ -56,19 +50,14 @@ class Decoder(tf.keras.Model):
                                          return_sequences=True,
                                          return_state=True,
                                          recurrent_initializer='glorot_uniform')
-        self.gru_3 = tf.keras.layers.GRU(self.units,
-                                         return_sequences=True,
-                                         return_state=True,
-                                         recurrent_initializer='glorot_uniform')
         self.dense_1 = tf.keras.layers.Dense(512, activation='relu')
         self.dense_2 = tf.keras.layers.Dense(64, activation='relu')
         self.classifier = tf.keras.layers.Dense(1, activation='sigmoid')
 
-    def call(self, x, state_1, state_2, state_3):
+    def call(self, x, state_1, state_2):
         gru_output_1, _ = self.gru_1(x, initial_state=state_1)
         gru_output_2, _ = self.gru_2(gru_output_1, initial_state=state_2)
-        gru_output_3, _ = self.gru_3(gru_output_2, initial_state=state_3)
-        dense_output_1 = self.dense_1(gru_output_3)
+        dense_output_1 = self.dense_1(gru_output_2)
         dense_output_2 = self.dense_2(dense_output_1)
         classifier_output = self.classifier(dense_output_2)
         return classifier_output
@@ -112,10 +101,10 @@ class IdentityTracking:
         with tf.GradientTape() as tape:
             encoder_input, decoder_input = tf.split(
                 x, [self.tensor_length-1, 1], axis=1)
-            decoder_state_1, decoder_state_2, decoder_state_3 = self.encoder(
+            decoder_state_1, decoder_state_2 = self.encoder(
                 encoder_input, encoder_state)
             predictions = self.decoder(
-                decoder_input, decoder_state_1, decoder_state_2, decoder_state_3)
+                decoder_input, decoder_state_1, decoder_state_2)
             loss = self.loss_function(y, predictions)
         variables = self.encoder.trainable_variables + self.decoder.trainable_variables
         gradients = tape.gradient(loss, variables)
@@ -182,9 +171,9 @@ class IdentityTracking:
         encoder_input, decoder_input = tf.split(
             x, [self.tensor_length-1, 1], axis=1)
         init_state = tf.zeros((input_len, self.encoder.units))
-        encoder_state_1, encoder_state_2, encoder_state_3 = self.encoder(
+        encoder_state_1, encoder_state_2 = self.encoder(
             encoder_input, init_state)
         predictions = self.decoder(
-            decoder_input, encoder_state_1, encoder_state_2, encoder_state_3)
+            decoder_input, encoder_state_1, encoder_state_2)
         predictions = tf.reshape(predictions, [-1])
         return predictions, tf.math.argmax(predictions)
