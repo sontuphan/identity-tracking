@@ -3,6 +3,7 @@ import cv2 as cv
 import numpy as np
 
 from utils import image
+from src.humandetection import HumanDetection
 from src.identitytracking import IdentityTracking
 from src.datamanufacture import DataManufacture
 
@@ -33,9 +34,6 @@ def train():
 
     dataset = pipeline.shuffle(128).batch(
         idtr.batch_size, drop_remainder=True)
-<<<<<<< HEAD
-    idtr.train(dataset, 10)
-=======
     idtr.train(dataset, 10)
 
 
@@ -104,4 +102,3 @@ def predict():
         cv.imshow('Video', img)
         if cv.waitKey(10) & 0xFF == ord('q'):
             break
->>>>>>> ff1cae9dd8a529a8f0477ffe8f70d49711966318
