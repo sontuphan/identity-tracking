@@ -23,9 +23,9 @@ def summarize():
 
 def train():
     idtr = IdentityTracking()
-    names = ['MOT17-05']
-    # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
-    #          'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
+    # names = ['MOT17-05']
+    names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
+             'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
     pipeline = None
     for name in names:
@@ -38,7 +38,7 @@ def train():
 
     dataset = pipeline.shuffle(128).batch(
         idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 20)
+    idtr.train(dataset, 10)
 
 
 def predict():
@@ -64,7 +64,7 @@ def predict():
         if is_first_frames:
             is_first_frames = False
             for _ in range(idtr.tensor_length):
-                histories.append((objs[1], img))
+                histories.append((objs[0], img))
         else:
             inputs = []
             for obj in objs:
