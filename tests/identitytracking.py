@@ -3,12 +3,12 @@ import cv2 as cv
 import numpy as np
 
 from utils import image
-from src.identitytracking import IdentityTracking, FeaturesExtractor, DimensionExtractor
+from src.identitytracking import IdentityTracking
 from src.datamanufacture import DataManufacture
 from src.humandetection import HumanDetection
 
 VIDEO0 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/gta.mp4")
+    os.path.abspath(__file__)), "../data/video/3rd-camera.mp4")
 VIDEO5 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-05-SDP.mp4")
 VIDEO6 = os.path.join(os.path.dirname(
@@ -17,15 +17,11 @@ VIDEO9 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-09-FRCNN.mp4")
 
 
-def summarize():
-    pass
-
-
 def train():
     idtr = IdentityTracking()
-    # names = ['MOT17-05']
-    names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
-             'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
+    names = ['MOT17-05']
+    # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
+    #          'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
     pipeline = None
     for name in names:
@@ -45,7 +41,7 @@ def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO5)
+    cap = cv.VideoCapture(VIDEO9)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
