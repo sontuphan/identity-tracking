@@ -2,7 +2,7 @@ import sys
 
 import tensorflow as tf
 from tests import utils, datamanufacture, identitytracking
-# from tests import humandetection
+from tests import humandetection
 from tests import extractor
 
 tf.get_logger().setLevel('ERROR')
@@ -20,17 +20,17 @@ if __name__ == "__main__":
                 if func == "crop_image":
                     utils.crop_image()
 
-            # elif test == "humandetection":
-            #     if func == "test_with_camera":
-            #         humandetection.test_with_camera()
-            #     if func == "test_with_video_1":
-            #         humandetection.test_with_video(1)
-            #     if func == "test_with_video_2":
-            #         humandetection.test_with_video(2)
-            #     if func == "test_with_video_3":
-            #         humandetection.test_with_video(3)
-            #     if func == "test_with_video_4":
-            #         humandetection.test_with_video(4)
+            elif test == "humandetection":
+                if func == "test_with_camera":
+                    humandetection.test_with_camera()
+                if func == "test_with_video_1":
+                    humandetection.test_with_video(1)
+                if func == "test_with_video_2":
+                    humandetection.test_with_video(2)
+                if func == "test_with_video_3":
+                    humandetection.test_with_video(3)
+                if func == "test_with_video_4":
+                    humandetection.test_with_video(4)
 
             elif test == "datamanufacture":
                 if func == "generate_small_data":
@@ -47,8 +47,12 @@ if __name__ == "__main__":
                     identitytracking.predict()
 
             elif test == "visualization":
+                if func == "test_generator":
+                    extractor.test_generator()
                 if func == "test_96":
                     extractor.test_96()
+                if func == "test_inception":
+                    extractor.test_inception()
 
             else:
                 print("Error: Test file does not exist.")
