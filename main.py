@@ -51,6 +51,8 @@ if __name__ == "__main__":
                     extractor.test_generator()
                 if func == "test_96":
                     extractor.test_96()
+                if func == "test_224":
+                    extractor.test_224()
                 if func == "test_inception":
                     extractor.test_inception()
 
