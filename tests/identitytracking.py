@@ -19,9 +19,9 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 def train():
     idtr = IdentityTracking()
-    names = ['MOT17-05']
-    # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
-    #          'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
+    # names = ['MOT17-05']
+    names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
+             'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
     pipeline = None
     for name in names:
