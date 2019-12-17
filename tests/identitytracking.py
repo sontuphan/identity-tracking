@@ -32,7 +32,7 @@ def train():
         else:
             pipeline = pipeline.concatenate(next_pipeline)
 
-    dataset = pipeline.shuffle(128).batch(
+    dataset = pipeline.shuffle(256).batch(
         idtr.batch_size, drop_remainder=True)
     idtr.train(dataset, 10)
 

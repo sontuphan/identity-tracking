@@ -58,23 +58,47 @@ class ExtractorInception(tf.keras.Model):
 
 
 def test_generator():
-    dm = DataManufacture(hist_len=8, img_shape=(299, 299))
+    dm = DataManufacture(hist_len=8, img_shape=(96, 96))
     dataset = dm.generator()
     dataset = iter(dataset)
 
-    for _ in range(10):
+    for _ in range(5):
         for _ in range(random.randint(0, 10)):
             coordinates, imgs, label = next(dataset)
-        haha = None
+        tensor = None
         for img in imgs:
-            if haha is None:
-                haha = img
+            if tensor is None:
+                tensor = img
             else:
-                haha = np.concatenate((haha, img), axis=1)
-        plt.imshow(haha)
+                tensor = np.concatenate((tensor, img), axis=1)
+        plt.imshow(tensor)
         plt.text(0, 0, str(label))
         for i in range(8):
-            plt.text(0, dm.IMAGE_SHAPE[1]*(2+i/4), str(coordinates[i]))
+            plt.text(0, dm.img_shape[1]*(2+i/4), str(coordinates[i]))
+        plt.show()
+
+
+def test_pipeline():
+    dm = DataManufacture(hist_len=8, img_shape=(96, 96))
+    pipeline = dm.input_pipeline()
+    pipeline = pipeline.shuffle(128)
+
+    for _ in range(5):
+        for data in pipeline.take(1):
+            coordinates, imgs, label = data
+            coordinates = coordinates.numpy()
+            imgs = imgs.numpy()
+            label = label.numpy()
+        tensor = None
+        for img in imgs:
+            if tensor is None:
+                tensor = img
+            else:
+                tensor = np.concatenate((tensor, img), axis=1)
+        plt.imshow(tensor)
+        plt.text(0, 0, str(label))
+        for i in range(8):
+            plt.text(0, dm.img_shape[1]*(2+i/4), str(coordinates[i]))
         plt.show()
 
 
