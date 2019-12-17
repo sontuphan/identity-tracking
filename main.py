@@ -1,8 +1,7 @@
 import sys
 
 import tensorflow as tf
-from tests import utils, datamanufacture
-from tests import shallowRNN, prototype, seq2seq, identitytracking
+from tests import utils, datamanufacture, identitytracking
 
 tf.get_logger().setLevel('ERROR')
 
@@ -27,29 +26,11 @@ if __name__ == "__main__":
                 if func == "review_source":
                     datamanufacture.review_source()
 
-            elif test == "shallowrnn":
-                if func == "train_net":
-                    shallowRNN.train_net()
-                if func == "run_net":
-                    shallowRNN.run_net()
-
-            elif test == "prototype":
-                if func == "draw_prototype":
-                    prototype.draw_prototype()
-
-            elif test == "seq2seq":
-                if func == "train_net":
-                    seq2seq.train_net()
-                if func == "run_net":
-                    seq2seq.run_net()
-
             elif test == "identitytracking":
                 if func == "train":
                     identitytracking.train()
                 if func == "predict":
                     identitytracking.predict()
-                if func == "summarize":
-                    identitytracking.summarize()
 
             else:
                 print("Error: Test file does not exist.")
