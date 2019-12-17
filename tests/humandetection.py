@@ -1,17 +1,17 @@
 import os
 import cv2 as cv
 
-from utils import camera, detect, image
+from utils import camera, image
 from src import humandetection
 
 VIDEO1 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/chaplin.mp4")
 VIDEO2 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/MOT17-03-SDP.mp4")
+    os.path.abspath(__file__)), "../data/video/gta.mp4")
 VIDEO3 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-05-SDP.mp4")
 VIDEO4 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/PETS09-S2L2.mp4")
+    os.path.abspath(__file__)), "../data/video/MOT17-09-FRCNN.mp4")
 
 
 def test_with_camera():
