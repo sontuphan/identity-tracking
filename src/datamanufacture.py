@@ -10,15 +10,16 @@ from utils import image
 from utils.bbox import BBox, Object
 
 FRAME_SHAPE = (640, 480)
-IMAGE_SHAPE = (96, 96)
 
 
 class DataManufacture():
-    def __init__(self, data_name='MOT17-05', hist_len=32, batch_size=64):
+    def __init__(self, data_name='MOT17-05', hist_len=32, batch_size=64,
+                 img_shape=(96, 96)):
         self.data_dir = 'data/MOT17Det/train/'
         self.data_name = data_name
         self.hist_len = hist_len
         self.batch_size = batch_size
+        self.IMAGE_SHAPE = img_shape
 
         config = configparser.ConfigParser()
         config.read(self.data_dir + self.data_name + '/seqinfo.ini')
@@ -26,7 +27,7 @@ class DataManufacture():
                          int(config['Sequence']['imHeight']))
 
     def input_pipeline(self):
-        (img_width, img_height) = IMAGE_SHAPE
+        (img_width, img_height) = self.IMAGE_SHAPE
         pipeline = tf.data.Dataset.from_generator(
             self.generator, args=[False],
             output_types=(tf.float32, tf.float32, tf.bool),
@@ -72,7 +73,7 @@ class DataManufacture():
         img = self.load_frame(obj[2])
         obj = self.convert_array_to_object(obj)
         cropped_img = image.crop(img, obj)
-        resized_img = image.resize(cropped_img, IMAGE_SHAPE)
+        resized_img = image.resize(cropped_img, self.IMAGE_SHAPE)
         img_arr = image.convert_pil_to_cv(resized_img)
         return img_arr/255.0
 
