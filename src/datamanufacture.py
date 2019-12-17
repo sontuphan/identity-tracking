@@ -69,8 +69,8 @@ class DataManufacture():
         return img_tensor
 
     def process_image(self, obj):
-        obj = self.convert_array_to_object(obj)
         img = self.load_frame(obj[2])
+        obj = self.convert_array_to_object(obj)
         cropped_img = image.crop(img, obj)
         resized_img = image.resize(cropped_img, IMAGE_SHAPE)
         img_arr = image.convert_pil_to_cv(resized_img)
