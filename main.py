@@ -49,6 +49,8 @@ if __name__ == "__main__":
             elif test == "visualization":
                 if func == "test_generator":
                     extractor.test_generator()
+                if func == "test_pipeline":
+                    extractor.test_pipeline()
                 if func == "test_96":
                     extractor.test_96()
                 if func == "test_224":

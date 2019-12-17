@@ -41,7 +41,7 @@ class DimensionExtractor(tf.keras.Model):
         self.tensor_length = tensor_length
         self.model = tf.keras.Sequential([
             tf.keras.layers.Dense(512, activation='relu',
-                                  input_shape=(self.tensor_length, 4,)),
+                                  input_shape=(self.tensor_length, 4)),
             tf.keras.layers.Dense(256, activation='relu')
         ])
 
@@ -94,7 +94,7 @@ class Decoder(tf.keras.Model):
 class IdentityTracking:
     def __init__(self):
         self.tensor_length = 8
-        self.batch_size = 32
+        self.batch_size = 64
         self.encoder = Encoder(512)
         self.decoder = Decoder(512)
         self.fextractor = FeaturesExtractor(self.tensor_length)
