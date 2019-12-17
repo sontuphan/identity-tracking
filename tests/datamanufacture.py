@@ -1,6 +1,3 @@
-import time
-import tensorflow as tf
-
 from src.datamanufacture import DataManufacture
 
 
