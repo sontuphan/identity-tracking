@@ -22,7 +22,7 @@ class FeaturesExtractor(tf.keras.Model):
                 trainable=False,
                 input_shape=(IMAGE_SHAPE+(3,))
             ),
-            tf.keras.layers.Dense(512, activation='relu')
+            tf.keras.layers.Dense(1024, activation='relu')
         ])
 
     def call(self, x):
@@ -31,7 +31,7 @@ class FeaturesExtractor(tf.keras.Model):
             x, [batch_size*self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
         logits = self.model(cnn_inputs)
         features = tf.reshape(
-            logits, [batch_size, self.tensor_length, 512])
+            logits, [batch_size, self.tensor_length, 1024])
         return features
 
 
@@ -40,9 +40,9 @@ class DimensionExtractor(tf.keras.Model):
         super(DimensionExtractor, self).__init__()
         self.tensor_length = tensor_length
         self.model = tf.keras.Sequential([
-            tf.keras.layers.Dense(512, activation='relu',
+            tf.keras.layers.Dense(1024, activation='relu',
                                   input_shape=(self.tensor_length, 4)),
-            tf.keras.layers.Dense(256, activation='relu')
+            tf.keras.layers.Dense(1024, activation='relu')
         ])
 
     def call(self, x):
@@ -51,7 +51,7 @@ class DimensionExtractor(tf.keras.Model):
             x, [batch_size*self.tensor_length, 4])
         logits = self.model(cnn_inputs)
         features = tf.reshape(
-            logits, [batch_size, self.tensor_length, 256])
+            logits, [batch_size, self.tensor_length, 1024])
         return features
 
 
@@ -81,7 +81,7 @@ class Decoder(tf.keras.Model):
                                        return_sequences=True,
                                        return_state=True,
                                        recurrent_initializer='glorot_uniform')
-        self.dense = tf.keras.layers.Dense(256, activation='relu')
+        self.dense = tf.keras.layers.Dense(512, activation='relu')
         self.classifier = tf.keras.layers.Dense(1, activation='sigmoid')
 
     def call(self, x, state):
@@ -95,8 +95,8 @@ class IdentityTracking:
     def __init__(self):
         self.tensor_length = 8
         self.batch_size = 64
-        self.encoder = Encoder(512)
-        self.decoder = Decoder(512)
+        self.encoder = Encoder(1024)
+        self.decoder = Decoder(1024)
         self.fextractor = FeaturesExtractor(self.tensor_length)
         self.dextractor = DimensionExtractor(self.tensor_length)
         self.optimizer = keras.optimizers.Adam()
