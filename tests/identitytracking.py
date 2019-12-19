@@ -19,9 +19,9 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 def train():
     idtr = IdentityTracking()
-    # names = ['MOT17-05']
-    names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
-             'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
+    names = ['MOT17-05']
+    # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
+    #          'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
     pipeline = None
     for name in names:
@@ -35,18 +35,18 @@ def train():
 
     dataset = pipeline.shuffle(256).batch(
         idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 10)
+    idtr.train(dataset, 5)
 
 
 def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO0)
+    cap = cv.VideoCapture(VIDEO5)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
-    is_first_frames = True
+    is_first_frames = idtr.tensor_length
     histories = []
     while(cap.isOpened()):
         ret, frame = cap.read()
@@ -58,10 +58,9 @@ def predict():
         img = image.resize(img, (640, 480))
         objs = hd.predict(img)
 
-        if is_first_frames:
-            is_first_frames = False
-            for _ in range(idtr.tensor_length):
-                histories.append((objs[0], img))
+        if is_first_frames > 0:
+            is_first_frames -= 1
+            histories.append((objs[0], img))
         else:
             inputs = []
             for obj in objs:

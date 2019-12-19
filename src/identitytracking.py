@@ -41,8 +41,7 @@ class DimensionExtractor(tf.keras.Model):
         super(DimensionExtractor, self).__init__()
         self.tensor_length = tensor_length
         self.model = tf.keras.Sequential([
-            tf.keras.layers.Dense(1024, activation='relu',
-                                  input_shape=(self.tensor_length, 4)),
+            tf.keras.layers.Dense(1024, activation='relu'),
             tf.keras.layers.Dense(512, activation='relu')
         ])
 
@@ -82,14 +81,15 @@ class Decoder(tf.keras.Model):
                                        return_sequences=True,
                                        return_state=True,
                                        recurrent_initializer='glorot_uniform')
-        self.dense = tf.keras.layers.Dense(512, activation='relu')
-        self.dense = tf.keras.layers.Dense(256, activation='relu')
+        self.dense_1 = tf.keras.layers.Dense(512, activation='relu')
+        self.dense_2 = tf.keras.layers.Dense(256, activation='relu')
         self.classifier = tf.keras.layers.Dense(1, activation='sigmoid')
 
     def call(self, x, state):
         gru_output, _ = self.gru(x, initial_state=state)
-        dense_output = self.dense(gru_output)
-        classifier_output = self.classifier(dense_output)
+        dense_output_1 = self.dense_1(gru_output)
+        dense_output_2 = self.dense_2(dense_output_1)
+        classifier_output = self.classifier(dense_output_2)
         return classifier_output
 
 
@@ -175,7 +175,7 @@ class IdentityTracking:
             print('\tLoss Metric {:.4f}'.format(self.loss_metric.result()))
             print('\tAccuracy Metric {:.4f}'.format(
                 self.accuracy_metric.result()*100))
-            print('\tTime taken for 1 epoch {} sec\n'.format(end - start))
+            print('\tTime taken for 1 epoch {:.4f} sec\n'.format(end - start))
 
     def predict(self, inputs):
         bboxes = []
