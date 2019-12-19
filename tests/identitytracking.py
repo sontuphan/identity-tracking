@@ -19,6 +19,7 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 def train():
     idtr = IdentityTracking()
+<<<<<<< HEAD
     # names = ['MOT17-05']
     names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
              'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
@@ -27,6 +28,15 @@ def train():
     for name in names:
         generator = DataManufacture(name, idtr.tensor_length,
                                     idtr.batch_size, idtr.image_shape)
+=======
+    names = ['MOT17-05']
+    # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
+    #          'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
+
+    pipeline = None
+    for name in names:
+        generator = DataManufacture(name, idtr.tensor_length, idtr.batch_size)
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
         next_pipeline = generator.input_pipeline()
         if pipeline is None:
             pipeline = next_pipeline
@@ -42,7 +52,11 @@ def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
+<<<<<<< HEAD
     cap = cv.VideoCapture(VIDEO0)
+=======
+    cap = cv.VideoCapture(VIDEO5)
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 

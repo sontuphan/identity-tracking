@@ -22,7 +22,11 @@ class FeaturesExtractor(tf.keras.Model):
                 trainable=False,
                 input_shape=(IMAGE_SHAPE+(3,))
             ),
+<<<<<<< HEAD
             tf.keras.layers.Dense(1024, activation='relu')
+=======
+            tf.keras.layers.Dense(512, activation='relu')
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
         ])
 
     def call(self, x):
@@ -31,7 +35,11 @@ class FeaturesExtractor(tf.keras.Model):
             x, [batch_size*self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
         logits = self.model(cnn_inputs)
         features = tf.reshape(
+<<<<<<< HEAD
             logits, [batch_size, self.tensor_length, 1024])
+=======
+            logits, [batch_size, self.tensor_length, 512])
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
         return features
 
 
@@ -40,9 +48,15 @@ class DimensionExtractor(tf.keras.Model):
         super(DimensionExtractor, self).__init__()
         self.tensor_length = tensor_length
         self.model = tf.keras.Sequential([
+<<<<<<< HEAD
             tf.keras.layers.Dense(1024, activation='relu',
                                   input_shape=(self.tensor_length, 4)),
             tf.keras.layers.Dense(512, activation='relu')
+=======
+            tf.keras.layers.Dense(512, activation='relu',
+                                  input_shape=(self.tensor_length, 4)),
+            tf.keras.layers.Dense(256, activation='relu')
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
         ])
 
     def call(self, x):
@@ -51,7 +65,11 @@ class DimensionExtractor(tf.keras.Model):
             x, [batch_size*self.tensor_length, 4])
         logits = self.model(cnn_inputs)
         features = tf.reshape(
+<<<<<<< HEAD
             logits, [batch_size, self.tensor_length, 512])
+=======
+            logits, [batch_size, self.tensor_length, 256])
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
         return features
 
 
@@ -81,7 +99,11 @@ class Decoder(tf.keras.Model):
                                        return_sequences=True,
                                        return_state=True,
                                        recurrent_initializer='glorot_uniform')
+<<<<<<< HEAD
         self.dense = tf.keras.layers.Dense(512, activation='relu')
+=======
+        self.dense = tf.keras.layers.Dense(256, activation='relu')
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
         self.classifier = tf.keras.layers.Dense(1, activation='sigmoid')
 
     def call(self, x, state):
@@ -95,20 +117,30 @@ class IdentityTracking:
     def __init__(self):
         self.tensor_length = 8
         self.batch_size = 64
+<<<<<<< HEAD
         self.image_shape = IMAGE_SHAPE
         self.encoder = Encoder(1024)
         self.decoder = Decoder(1024)
+=======
+        self.encoder = Encoder(512)
+        self.decoder = Decoder(512)
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
         self.fextractor = FeaturesExtractor(self.tensor_length)
         self.dextractor = DimensionExtractor(self.tensor_length)
         self.optimizer = keras.optimizers.Adam()
         self.loss = keras.losses.BinaryCrossentropy()
 
+<<<<<<< HEAD
         self.loss_metric = tf.keras.metrics.Mean(name='train_loss')
         self.accuracy_metric = tf.keras.metrics.BinaryAccuracy(
             name='train_accurary')
 
         self.checkpoint_dir = './models/idtr/training_checkpoints_' + \
             str(self.image_shape[0]) + '_' + str(self.tensor_length)
+=======
+        self.checkpoint_dir = './models/idtr/training_checkpoints_96_' + \
+            str(self.tensor_length)
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
         self.checkpoint_prefix = os.path.join(self.checkpoint_dir, 'ckpt')
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
                                               fextractor=self.fextractor,
@@ -151,7 +183,13 @@ class IdentityTracking:
         for epoch in range(epochs):
 
             start = time.time()
+<<<<<<< HEAD
             steps_per_epoch = 0
+=======
+            batch = 0
+            steps_per_epoch = 0
+            total_loss = 0
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
 
             iterator = iter(dataset)
             init_state = self.encoder.initialize_hidden_state(self.batch_size)
@@ -159,20 +197,41 @@ class IdentityTracking:
             try:
                 while True:
                     bboxes, cnn_inputs, labels = next(iterator)
+<<<<<<< HEAD
                     steps_per_epoch += 1
                     self.train_step(bboxes, cnn_inputs, labels, init_state)
             except StopIteration:
                 pass
 
             if (epoch+1) % 2 == 0:
+=======
+
+                    batch += 1
+                    steps_per_epoch += 1
+                    batch_loss = self.train_step(
+                        bboxes, cnn_inputs, labels, init_state)
+                    total_loss += batch_loss
+                    if batch % self.batch_size == 0:
+                        print('Epoch {} Batch {} Loss {:.4f}'.format(
+                            epoch + 1, batch, batch_loss.numpy()))
+            except StopIteration:
+                pass
+
+            if (epoch+1) % 5 == 0:
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
                 self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
             end = time.time()
             print('Steps per epoch: {}'.format(steps_per_epoch))
+<<<<<<< HEAD
             print('Epoch {}'.format(epoch + 1))
             print('\tLoss Metric {:.4f}'.format(self.loss_metric.result()))
             print('\tAccuracy Metric {:.4f}'.format(
                 self.accuracy_metric.result()*100))
+=======
+            print('Epoch {} Loss {:.4f}'.format(
+                epoch + 1, total_loss/steps_per_epoch))
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
             print('Time taken for 1 epoch {} sec\n'.format(end - start))
 
     def predict(self, inputs):
@@ -185,7 +244,11 @@ class IdentityTracking:
                 bbox = np.array(
                     [obj.bbox.xmin/640, obj.bbox.ymin/480, obj.bbox.xmax/640, obj.bbox.ymax/480])
                 cropped_img = image.crop(img, obj)
+<<<<<<< HEAD
                 resized_img = image.resize(cropped_img, self.image_shape)
+=======
+                resized_img = image.resize(cropped_img, IMAGE_SHAPE)
+>>>>>>> bd16ba85149ec9960865cfc90ceed21292c5be47
                 img_arr = image.convert_pil_to_cv(resized_img)/255.0
                 bbox_tensor.append(bbox)
                 img_tensor.append(img_arr)
