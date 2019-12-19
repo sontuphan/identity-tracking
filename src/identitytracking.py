@@ -42,7 +42,7 @@ class DimensionExtractor(tf.keras.Model):
         self.model = tf.keras.Sequential([
             tf.keras.layers.Dense(1024, activation='relu',
                                   input_shape=(self.tensor_length, 4)),
-            tf.keras.layers.Dense(1024, activation='relu')
+            tf.keras.layers.Dense(512, activation='relu')
         ])
 
     def call(self, x):
@@ -51,7 +51,7 @@ class DimensionExtractor(tf.keras.Model):
             x, [batch_size*self.tensor_length, 4])
         logits = self.model(cnn_inputs)
         features = tf.reshape(
-            logits, [batch_size, self.tensor_length, 1024])
+            logits, [batch_size, self.tensor_length, 512])
         return features
 
 
@@ -95,6 +95,7 @@ class IdentityTracking:
     def __init__(self):
         self.tensor_length = 8
         self.batch_size = 64
+        self.image_shape = IMAGE_SHAPE
         self.encoder = Encoder(1024)
         self.decoder = Decoder(1024)
         self.fextractor = FeaturesExtractor(self.tensor_length)
@@ -102,8 +103,12 @@ class IdentityTracking:
         self.optimizer = keras.optimizers.Adam()
         self.loss = keras.losses.BinaryCrossentropy()
 
-        self.checkpoint_dir = './models/idtr/training_checkpoints_96_' + \
-            str(self.tensor_length)
+        self.loss_metric = tf.keras.metrics.Mean(name='train_loss')
+        self.accuracy_metric = tf.keras.metrics.BinaryAccuracy(
+            name='train_accurary')
+
+        self.checkpoint_dir = './models/idtr/training_checkpoints_' + \
+            str(self.image_shape[0]) + '_' + str(self.tensor_length)
         self.checkpoint_prefix = os.path.join(self.checkpoint_dir, 'ckpt')
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
                                               fextractor=self.fextractor,
@@ -117,7 +122,13 @@ class IdentityTracking:
         real = tf.reshape(real, [self.batch_size, 1])
         pred = tf.reshape(pred, [self.batch_size, 1])
         loss = self.loss(real, pred)
-        return tf.reduce_mean(loss)
+        return loss
+
+    def metrics(self, loss, real, pred):
+        real = tf.reshape(real, [self.batch_size, 1])
+        pred = tf.reshape(pred, [self.batch_size, 1])
+        self.loss_metric(loss)
+        self.accuracy_metric(real, pred)
 
     @tf.function
     def train_step(self, bboxes, cnn_inputs, labels, encoder_state):
@@ -134,15 +145,13 @@ class IdentityTracking:
         variables = self.encoder.trainable_variables + self.decoder.trainable_variables
         gradients = tape.gradient(loss, variables)
         self.optimizer.apply_gradients(zip(gradients, variables))
-        return loss
+        self.metrics(loss, labels, predictions)
 
     def train(self, dataset, epochs=10):
         for epoch in range(epochs):
 
             start = time.time()
-            batch = 0
             steps_per_epoch = 0
-            total_loss = 0
 
             iterator = iter(dataset)
             init_state = self.encoder.initialize_hidden_state(self.batch_size)
@@ -150,25 +159,20 @@ class IdentityTracking:
             try:
                 while True:
                     bboxes, cnn_inputs, labels = next(iterator)
-
-                    batch += 1
                     steps_per_epoch += 1
-                    batch_loss = self.train_step(
-                        bboxes, cnn_inputs, labels, init_state)
-                    total_loss += batch_loss
-                    if batch % self.batch_size == 0:
-                        print('Epoch {} Batch {} Loss {:.4f}'.format(
-                            epoch + 1, batch, batch_loss.numpy()))
+                    self.train_step(bboxes, cnn_inputs, labels, init_state)
             except StopIteration:
                 pass
 
-            if (epoch+1) % 5 == 0:
+            if (epoch+1) % 2 == 0:
                 self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
             end = time.time()
             print('Steps per epoch: {}'.format(steps_per_epoch))
-            print('Epoch {} Loss {:.4f}'.format(
-                epoch + 1, total_loss/steps_per_epoch))
+            print('Epoch {}'.format(epoch + 1))
+            print('\tLoss Metric {:.4f}'.format(self.loss_metric.result()))
+            print('\tAccuracy Metric {:.4f}'.format(
+                self.accuracy_metric.result()*100))
             print('Time taken for 1 epoch {} sec\n'.format(end - start))
 
     def predict(self, inputs):
@@ -181,7 +185,7 @@ class IdentityTracking:
                 bbox = np.array(
                     [obj.bbox.xmin/640, obj.bbox.ymin/480, obj.bbox.xmax/640, obj.bbox.ymax/480])
                 cropped_img = image.crop(img, obj)
-                resized_img = image.resize(cropped_img, IMAGE_SHAPE)
+                resized_img = image.resize(cropped_img, self.image_shape)
                 img_arr = image.convert_pil_to_cv(resized_img)/255.0
                 bbox_tensor.append(bbox)
                 img_tensor.append(img_arr)
