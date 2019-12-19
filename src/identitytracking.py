@@ -37,7 +37,7 @@ class FeaturesExtractor(tf.keras.Model):
 
 class MovementExtractor(tf.keras.Model):
     def __init__(self, tensor_length):
-        super(DimensionExtractor, self).__init__()
+        super(MovementExtractor, self).__init__()
         self.tensor_length = tensor_length
         self.d1 = tf.keras.layers.Dense(1024, activation='relu')
         self.d2 = tf.keras.layers.Dense(512, activation='relu')
@@ -194,6 +194,7 @@ class IdentityTracking:
 
         cnn_features = self.fextractor(imgs)
         mov_features = self.mextractor(bboxes)
+        print(mov_features)
         x = tf.concat([cnn_features, mov_features], 2)
         (batch_inputs, _, _) = x.shape
         init_state = self.encoder.initialize_hidden_state(batch_inputs)
