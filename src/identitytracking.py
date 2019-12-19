@@ -16,42 +16,38 @@ class FeaturesExtractor(tf.keras.Model):
     def __init__(self, tensor_length):
         super(FeaturesExtractor, self).__init__()
         self.tensor_length = tensor_length
-        self.model = tf.keras.Sequential([
-            hub.KerasLayer(
-                'https://tfhub.dev/google/imagenet/mobilenet_v2_050_96/feature_vector/4',
-                trainable=False,
-                input_shape=(IMAGE_SHAPE+(3,))
-            ),
-            tf.keras.layers.Dense(1024, activation='relu'),
-            tf.keras.layers.Dense(512, activation='relu')
-        ])
+        self.extractor = hub.KerasLayer(
+            'https://tfhub.dev/google/imagenet/mobilenet_v2_050_96/feature_vector/4',
+            trainable=False,
+            input_shape=(IMAGE_SHAPE+(3,))
+        )
+        self.d1 = tf.keras.layers.Dense(1024, activation='relu')
+        self.d2 = tf.keras.layers.Dense(512, activation='relu')
 
     def call(self, x):
         (batch_size, _, _, _, _) = x.shape
         cnn_inputs = tf.reshape(
             x, [batch_size*self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
-        logits = self.model(cnn_inputs)
-        features = tf.reshape(
-            logits, [batch_size, self.tensor_length, 512])
+        logits = self.extractor(cnn_inputs)
+        d1_output = self.d1(logits)
+        d2_output = self.d2(d1_output)
+        features = tf.reshape(d2_output, [batch_size, self.tensor_length, 512])
         return features
 
 
-class DimensionExtractor(tf.keras.Model):
+class MovementExtractor(tf.keras.Model):
     def __init__(self, tensor_length):
         super(DimensionExtractor, self).__init__()
         self.tensor_length = tensor_length
-        self.model = tf.keras.Sequential([
-            tf.keras.layers.Dense(1024, activation='relu'),
-            tf.keras.layers.Dense(512, activation='relu')
-        ])
+        self.d1 = tf.keras.layers.Dense(1024, activation='relu')
+        self.d2 = tf.keras.layers.Dense(512, activation='relu')
 
     def call(self, x):
         (batch_size, _, _) = x.shape
-        cnn_inputs = tf.reshape(
-            x, [batch_size*self.tensor_length, 4])
-        logits = self.model(cnn_inputs)
-        features = tf.reshape(
-            logits, [batch_size, self.tensor_length, 512])
+        movement_inputs = tf.reshape(x, [batch_size*self.tensor_length, 4])
+        d1_output = self.d1(movement_inputs)
+        d2_output = self.d2(d1_output)
+        features = tf.reshape(d2_output, [batch_size, self.tensor_length, 512])
         return features
 
 
@@ -81,15 +77,15 @@ class Decoder(tf.keras.Model):
                                        return_sequences=True,
                                        return_state=True,
                                        recurrent_initializer='glorot_uniform')
-        self.dense_1 = tf.keras.layers.Dense(512, activation='relu')
-        self.dense_2 = tf.keras.layers.Dense(256, activation='relu')
+        self.d1 = tf.keras.layers.Dense(512, activation='relu')
+        self.d1 = tf.keras.layers.Dense(256, activation='relu')
         self.classifier = tf.keras.layers.Dense(1, activation='sigmoid')
 
     def call(self, x, state):
         gru_output, _ = self.gru(x, initial_state=state)
-        dense_output_1 = self.dense_1(gru_output)
-        dense_output_2 = self.dense_2(dense_output_1)
-        classifier_output = self.classifier(dense_output_2)
+        d1_output = self.d1(gru_output)
+        d2_output = self.d2(d1_output)
+        classifier_output = self.classifier(d2_output)
         return classifier_output
 
 
@@ -101,7 +97,7 @@ class IdentityTracking:
         self.encoder = Encoder(512)
         self.decoder = Decoder(512)
         self.fextractor = FeaturesExtractor(self.tensor_length)
-        self.dextractor = DimensionExtractor(self.tensor_length)
+        self.mextractor = MovementExtractor(self.tensor_length)
         self.optimizer = keras.optimizers.Adam()
         self.loss = keras.losses.BinaryCrossentropy()
 
@@ -114,7 +110,7 @@ class IdentityTracking:
         self.checkpoint_prefix = os.path.join(self.checkpoint_dir, 'ckpt')
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
                                               fextractor=self.fextractor,
-                                              dextractor=self.dextractor,
+                                              mextractor=self.mextractor,
                                               encoder=self.encoder,
                                               decoder=self.decoder)
         self.checkpoint.restore(
@@ -135,16 +131,17 @@ class IdentityTracking:
     @tf.function
     def train_step(self, bboxes, cnn_inputs, labels, encoder_state):
         with tf.GradientTape() as tape:
-            dimension_features = self.dextractor(bboxes)
             cnn_features = self.fextractor(cnn_inputs)
-            x = tf.concat([dimension_features, cnn_features], 2)
+            mov_features = self.mextractor(bboxes)
+            x = tf.concat([cnn_features, mov_features], 2)
             encoder_input, decoder_input = tf.split(
                 x, [self.tensor_length-1, 1], axis=1)
             encoder_state = self.encoder(encoder_input, encoder_state)
             decoder_state = encoder_state
             predictions = self.decoder(decoder_input, decoder_state)
             loss = self.loss_function(labels, predictions)
-        variables = self.encoder.trainable_variables + self.decoder.trainable_variables
+        variables = self.encoder.trainable_variables + self.decoder.trainable_variables + \
+            self.fextractor.trainable_variables + self.mextractor.trainable_variables
         gradients = tape.gradient(loss, variables)
         self.optimizer.apply_gradients(zip(gradients, variables))
         self.metrics(loss, labels, predictions)
@@ -166,8 +163,7 @@ class IdentityTracking:
             except StopIteration:
                 pass
 
-            if (epoch+1) % 2 == 0:
-                self.checkpoint.save(file_prefix=self.checkpoint_prefix)
+            self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
             end = time.time()
             print('Epoch {}'.format(epoch + 1))
@@ -196,9 +192,9 @@ class IdentityTracking:
         bboxes = tf.stack(bboxes)
         imgs = tf.stack(imgs)
 
-        dimension_features = self.dextractor(bboxes)
         cnn_features = self.fextractor(imgs)
-        x = tf.concat([dimension_features, cnn_features], 2)
+        mov_features = self.mextractor(bboxes)
+        x = tf.concat([cnn_features, mov_features], 2)
         (batch_inputs, _, _) = x.shape
         init_state = self.encoder.initialize_hidden_state(batch_inputs)
         encoder_input, decoder_input = tf.split(
