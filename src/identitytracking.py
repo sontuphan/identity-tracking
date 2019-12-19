@@ -78,7 +78,7 @@ class Decoder(tf.keras.Model):
                                        return_state=True,
                                        recurrent_initializer='glorot_uniform')
         self.d1 = tf.keras.layers.Dense(512, activation='relu')
-        self.d1 = tf.keras.layers.Dense(256, activation='relu')
+        self.d2 = tf.keras.layers.Dense(256, activation='relu')
         self.classifier = tf.keras.layers.Dense(1, activation='sigmoid')
 
     def call(self, x, state):
