@@ -12,58 +12,57 @@ from utils import image
 IMAGE_SHAPE = (96, 96)
 
 
-class FeaturesExtractor(tf.keras.Model):
+class FeaturesExtractor(keras.Model):
     def __init__(self, tensor_length):
         super(FeaturesExtractor, self).__init__()
         self.tensor_length = tensor_length
-        self.model = tf.keras.Sequential([
-            hub.KerasLayer(
-                'https://tfhub.dev/google/imagenet/mobilenet_v2_050_96/feature_vector/4',
-                trainable=False,
-                input_shape=(IMAGE_SHAPE+(3,))
-            ),
-            tf.keras.layers.Dense(1024, activation='relu'),
-            tf.keras.layers.Dense(512, activation='relu')
-        ])
+        self.extractor = hub.KerasLayer(
+            'https://tfhub.dev/google/imagenet/mobilenet_v2_050_96/feature_vector/4',
+            trainable=False,
+            input_shape=(IMAGE_SHAPE+(3,))
+        )
+        self.d1 = keras.layers.Dense(1024, activation='relu')
+        self.d2 = keras.layers.Dense(512, activation='relu')
 
     def call(self, x):
         (batch_size, _, _, _, _) = x.shape
         cnn_inputs = tf.reshape(
             x, [batch_size*self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
-        logits = self.model(cnn_inputs)
+        logits = self.extractor(cnn_inputs)
+        d1_output = self.d1(logits)
+        d2_output = self.d2(d1_output)
         features = tf.reshape(
-            logits, [batch_size, self.tensor_length, 512])
+            d2_output, [batch_size, self.tensor_length, 512])
         return features
 
 
-class DimensionExtractor(tf.keras.Model):
+class DimensionExtractor(keras.Model):
     def __init__(self, tensor_length):
         super(DimensionExtractor, self).__init__()
         self.tensor_length = tensor_length
-        self.model = tf.keras.Sequential([
-            tf.keras.layers.Dense(1024, activation='relu'),
-            tf.keras.layers.Dense(512, activation='relu')
-        ])
+        self.d1 = keras.layers.Dense(1024, activation='relu')
+        self.d2 = keras.layers.Dense(512, activation='relu')
 
     def call(self, x):
         (batch_size, _, _) = x.shape
-        cnn_inputs = tf.reshape(
+        dim_inputs = tf.reshape(
             x, [batch_size*self.tensor_length, 4])
-        logits = self.model(cnn_inputs)
+        d1_output = self.d1(dim_inputs)
+        d2_output = self.d2(d1_output)
         features = tf.reshape(
-            logits, [batch_size, self.tensor_length, 512])
+            d2_output, [batch_size, self.tensor_length, 512])
         return features
 
 
-class Encoder(tf.keras.Model):
+class Encoder(keras.Model):
     def __init__(self, units):
         super(Encoder, self).__init__()
         self.units = units
         # Recall: in gru cell, h = c
-        self.gru = tf.keras.layers.GRU(self.units,
-                                       return_sequences=True,
-                                       return_state=True,
-                                       recurrent_initializer='glorot_uniform')
+        self.gru = keras.layers.GRU(self.units,
+                                    return_sequences=True,
+                                    return_state=True,
+                                    recurrent_initializer='glorot_uniform')
 
     def call(self, x, state):
         _, hidden_state = self.gru(x, initial_state=state)
@@ -73,25 +72,25 @@ class Encoder(tf.keras.Model):
         return tf.zeros((batch_size, self.units))
 
 
-class Decoder(tf.keras.Model):
+class Decoder(keras.Model):
     def __init__(self, units):
         super(Decoder, self).__init__()
         self.units = units
-        self.gru = tf.keras.layers.GRU(self.units,
-                                       return_sequences=True,
-                                       return_state=True,
-                                       recurrent_initializer='glorot_uniform')
+        self.gru = keras.layers.GRU(self.units,
+                                    return_sequences=True,
+                                    return_state=True,
+                                    recurrent_initializer='glorot_uniform')
 
-        self.model = tf.keras.Sequential([
-            tf.keras.layers.Dense(512, activation='relu'),
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(2, activation='softmax')
-        ])
+        self.d1 = keras.layers.Dense(512, activation='relu')
+        self.d2 = keras.layers.Dense(256, activation='relu')
+        self.d3 = keras.layers.Dense(2, activation='softmax')
 
     def call(self, x, state):
         gru_output, _ = self.gru(x, initial_state=state)
-        classifier_output = self.model(gru_output)
-        return classifier_output
+        d1_output = self.d1(gru_output)
+        d2_output = self.d2(d1_output)
+        d3_output = self.d3(d2_output)
+        return d3_output
 
 
 class IdentityTracking:
@@ -105,7 +104,7 @@ class IdentityTracking:
         self.dextractor = DimensionExtractor(self.tensor_length)
 
         self.optimizer = keras.optimizers.Adam()
-        self.loss = keras.losses.CategoricalCrossentropy(from_logits=True)
+        self.loss = keras.losses.CategoricalCrossentropy()
 
         self.loss_metric = keras.metrics.Mean(name='train_loss')
         self.accuracy_metric = keras.metrics.CategoricalAccuracy(
@@ -122,15 +121,7 @@ class IdentityTracking:
         self.checkpoint.restore(
             tf.train.latest_checkpoint(self.checkpoint_dir))
 
-    def loss_function(self, real, pred):
-        # real = tf.reshape(real, [self.batch_size, 1])
-        # pred = tf.reshape(pred, [self.batch_size, 1])
-        loss = self.loss(real, pred)
-        return loss
-
     def metrics(self, loss, real, pred):
-        # real = tf.reshape(real, [self.batch_size, 1])
-        # pred = tf.reshape(pred, [self.batch_size, 1])
         self.loss_metric(loss)
         self.accuracy_metric(real, pred)
 
@@ -145,8 +136,9 @@ class IdentityTracking:
             encoder_state = self.encoder(encoder_input, encoder_state)
             decoder_state = encoder_state
             predictions = self.decoder(decoder_input, decoder_state)
-            loss = self.loss_function(labels, predictions)
-        variables = self.encoder.trainable_variables + self.decoder.trainable_variables
+            loss = self.loss(labels, predictions)
+        variables = self.encoder.trainable_variables + self.decoder.trainable_variables + \
+            self.dextractor.trainable_variables + self.fextractor.trainable_variables
         gradients = tape.gradient(loss, variables)
         self.optimizer.apply_gradients(zip(gradients, variables))
         self.metrics(loss, labels, predictions)
