@@ -81,15 +81,16 @@ class Decoder(tf.keras.Model):
                                        return_sequences=True,
                                        return_state=True,
                                        recurrent_initializer='glorot_uniform')
-        self.dense_1 = tf.keras.layers.Dense(512, activation='relu')
-        self.dense_2 = tf.keras.layers.Dense(256, activation='relu')
-        self.classifier = tf.keras.layers.Dense(1, activation='sigmoid')
+
+        self.model = tf.keras.Sequential([
+            tf.keras.layers.Dense(512, activation='relu'),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dense(2, activation='softmax')
+        ])
 
     def call(self, x, state):
         gru_output, _ = self.gru(x, initial_state=state)
-        dense_output_1 = self.dense_1(gru_output)
-        dense_output_2 = self.dense_2(dense_output_1)
-        classifier_output = self.classifier(dense_output_2)
+        classifier_output = self.model(gru_output)
         return classifier_output
 
 
@@ -102,11 +103,12 @@ class IdentityTracking:
         self.decoder = Decoder(512)
         self.fextractor = FeaturesExtractor(self.tensor_length)
         self.dextractor = DimensionExtractor(self.tensor_length)
-        self.optimizer = keras.optimizers.Adam()
-        self.loss = keras.losses.BinaryCrossentropy()
 
-        self.loss_metric = tf.keras.metrics.Mean(name='train_loss')
-        self.accuracy_metric = tf.keras.metrics.BinaryAccuracy(
+        self.optimizer = keras.optimizers.Adam()
+        self.loss = keras.losses.CategoricalCrossentropy(from_logits=True)
+
+        self.loss_metric = keras.metrics.Mean(name='train_loss')
+        self.accuracy_metric = keras.metrics.CategoricalAccuracy(
             name='train_accurary')
 
         self.checkpoint_dir = './models/idtr/training_checkpoints_' + \
@@ -121,14 +123,14 @@ class IdentityTracking:
             tf.train.latest_checkpoint(self.checkpoint_dir))
 
     def loss_function(self, real, pred):
-        real = tf.reshape(real, [self.batch_size, 1])
-        pred = tf.reshape(pred, [self.batch_size, 1])
+        # real = tf.reshape(real, [self.batch_size, 1])
+        # pred = tf.reshape(pred, [self.batch_size, 1])
         loss = self.loss(real, pred)
         return loss
 
     def metrics(self, loss, real, pred):
-        real = tf.reshape(real, [self.batch_size, 1])
-        pred = tf.reshape(pred, [self.batch_size, 1])
+        # real = tf.reshape(real, [self.batch_size, 1])
+        # pred = tf.reshape(pred, [self.batch_size, 1])
         self.loss_metric(loss)
         self.accuracy_metric(real, pred)
 
@@ -205,5 +207,8 @@ class IdentityTracking:
             x, [self.tensor_length-1, 1], axis=1)
         hidden_state = self.encoder(encoder_input, init_state)
         predictions = self.decoder(decoder_input, hidden_state)
-        predictions = tf.reshape(predictions, [-1])
+        predictions = tf.reshape(predictions, [2, -1])
+        predictions = tf.map_fn(
+            lambda prediction: prediction[1] if tf.math.argmax(prediction) == 1 else 1-prediction[0], predictions)
+
         return predictions, tf.math.argmax(predictions)
