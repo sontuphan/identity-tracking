@@ -22,7 +22,7 @@ class FeaturesExtractor(tf.keras.Model):
                 trainable=False,
                 input_shape=(IMAGE_SHAPE+(3,))
             ),
-            tf.keras.layers.Dense(1024, activation='relu')
+            tf.keras.layers.Dense(1024, activation='relu'),
             tf.keras.layers.Dense(512, activation='relu')
         ])
 
