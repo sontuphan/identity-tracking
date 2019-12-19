@@ -21,18 +21,15 @@ class FeaturesExtractor(keras.Model):
             trainable=False,
             input_shape=(IMAGE_SHAPE+(3,))
         )
-        self.d1 = keras.layers.Dense(1024, activation='relu')
-        self.d2 = keras.layers.Dense(512, activation='relu')
+        self.fc = keras.layers.Dense(512, activation='relu')
 
     def call(self, x):
         (batch_size, _, _, _, _) = x.shape
         cnn_inputs = tf.reshape(
             x, [batch_size*self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
         logits = self.extractor(cnn_inputs)
-        d1_output = self.d1(logits)
-        d2_output = self.d2(d1_output)
-        features = tf.reshape(
-            d2_output, [batch_size, self.tensor_length, 512])
+        fc_output = self.fc(logits)
+        features = tf.reshape(fc_output, [batch_size, self.tensor_length, 512])
         return features
 
 
@@ -40,17 +37,13 @@ class DimensionExtractor(keras.Model):
     def __init__(self, tensor_length):
         super(DimensionExtractor, self).__init__()
         self.tensor_length = tensor_length
-        self.d1 = keras.layers.Dense(1024, activation='relu')
-        self.d2 = keras.layers.Dense(512, activation='relu')
+        self.fc = keras.layers.Dense(512, activation='relu')
 
     def call(self, x):
         (batch_size, _, _) = x.shape
-        dim_inputs = tf.reshape(
-            x, [batch_size*self.tensor_length, 4])
-        d1_output = self.d1(dim_inputs)
-        d2_output = self.d2(d1_output)
-        features = tf.reshape(
-            d2_output, [batch_size, self.tensor_length, 512])
+        dim_inputs = tf.reshape(x, [batch_size*self.tensor_length, 4])
+        fc_output = self.fc(dim_inputs)
+        features = tf.reshape(fc_output, [batch_size, self.tensor_length, 512])
         return features
 
 
@@ -80,17 +73,14 @@ class Decoder(keras.Model):
                                     return_sequences=True,
                                     return_state=True,
                                     recurrent_initializer='glorot_uniform')
-
-        self.d1 = keras.layers.Dense(512, activation='relu')
-        self.d2 = keras.layers.Dense(256, activation='relu')
-        self.d3 = keras.layers.Dense(2, activation='softmax')
+        self.fc = keras.layers.Dense(256, activation='relu')
+        self.classifier = keras.layers.Dense(2, activation='softmax')
 
     def call(self, x, state):
         gru_output, _ = self.gru(x, initial_state=state)
-        d1_output = self.d1(gru_output)
-        d2_output = self.d2(d1_output)
-        d3_output = self.d3(d2_output)
-        return d3_output
+        fc_output = self.fc(gru_output)
+        classifier_output = self.classifier(fc_output)
+        return classifier_output
 
 
 class IdentityTracking:
@@ -160,8 +150,7 @@ class IdentityTracking:
             except StopIteration:
                 pass
 
-            if (epoch+1) % 2 == 0:
-                self.checkpoint.save(file_prefix=self.checkpoint_prefix)
+            self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
             end = time.time()
             print('Epoch {}'.format(epoch + 1))
