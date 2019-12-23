@@ -1,13 +1,10 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import tensorflow as tf
-from tensorflow import keras
 import tensorflow_hub as hub
 import numpy as np
-import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
-import cv2 as cv
 import random
 
 from src.datamanufacture import DataManufacture
@@ -62,9 +59,8 @@ def test_generator():
     dataset = dm.generator()
     dataset = iter(dataset)
 
-    for _ in range(5):
-        for _ in range(random.randint(0, 10)):
-            coordinates, imgs, label = next(dataset)
+    while True:
+        coordinates, imgs, label = next(dataset)
         tensor = None
         for img in imgs:
             if tensor is None:

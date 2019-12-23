@@ -33,34 +33,31 @@ def train():
         else:
             pipeline = pipeline.concatenate(next_pipeline)
 
-    dataset = pipeline.shuffle(256).batch(
+    dataset = pipeline.shuffle(128).batch(
         idtr.batch_size, drop_remainder=True)
     idtr.train(dataset, 5)
 
 
-def predict():
+def validate():
     idtr = IdentityTracking()
-    hd = HumanDetection()
+    dm = DataManufacture('MOT17-05', idtr.tensor_length,
+                         idtr.batch_size, idtr.image_shape)
 
-    cap = cv.VideoCapture(VIDEO5)
-    if (cap.isOpened() == False):
-        print("Error opening video stream or file")
-
+    ground_objs = dm.gen_data_by_frame()
     is_first_frames = idtr.tensor_length
     histories = []
-    while(cap.isOpened()):
-        ret, frame = cap.read()
+    for frame, objs in enumerate(ground_objs):
+        img = dm.load_frame(frame)
 
-        if ret != True:
-            break
-
-        img = image.convert_cv_to_pil(frame)
-        img = image.resize(img, (640, 480))
-        objs = hd.predict(img)
+        objs = map(dm.convert_array_to_object, objs)
+        objs = list(objs)
 
         if is_first_frames > 0:
-            is_first_frames -= 1
-            histories.append((objs[0], img))
+            obj_id = 0
+            if len(objs) > obj_id:
+                is_first_frames -= 1
+                histories.append((objs[obj_id], img))
+            continue
         else:
             inputs = []
             for obj in objs:
@@ -72,7 +69,7 @@ def predict():
                 predictions, argmax = idtr.predict(inputs)
                 predictions = predictions.numpy()
                 argmax = argmax.numpy()
-                if predictions[argmax] >= 0.4:
+                if predictions[argmax] >= 0.5:
                     obj = objs[argmax]
                     histories.pop(0)
                     histories.append((obj, img.copy()))
@@ -80,6 +77,78 @@ def predict():
 
                 print("==================")
                 print(predictions)
+                print(predictions[argmax])
+
+        # Test human detection
+        # image.draw_box(img, objs)
+        # Test historical frames
+        his_img = None
+        for history in histories:
+            (_obj, _img) = history
+            if his_img is None:
+                cropped_img = image.crop(_img, _obj)
+                resized_img = image.resize(cropped_img, (96, 96))
+                his_img = image.convert_pil_to_cv(resized_img)
+            else:
+                cropped_img = image.crop(_img, _obj)
+                resized_img = image.resize(cropped_img, (96, 96))
+                his_img = np.concatenate(
+                    (his_img, image.convert_pil_to_cv(resized_img)), axis=1)
+        cv.imshow('History', his_img)
+
+        img = image.convert_pil_to_cv(img)
+        cv.imshow('Video', img)
+        if cv.waitKey(10) & 0xFF == ord('q'):
+            break
+
+
+def predict():
+    idtr = IdentityTracking()
+    hd = HumanDetection()
+
+    cap = cv.VideoCapture(VIDEO9)
+    if (cap.isOpened() == False):
+        print("Error opening video stream or file")
+
+    is_first_frames = idtr.tensor_length
+    histories = []
+    while(cap.isOpened()):
+
+        ret, frame = cap.read()
+
+        if ret != True:
+            break
+
+        img = image.convert_cv_to_pil(frame)
+        img = image.resize(img, (640, 480))
+        objs = hd.predict(img)
+
+        if is_first_frames > 0:
+            obj_id = 1
+            if len(objs) > obj_id:
+                is_first_frames -= 1
+                histories.append((objs[obj_id], img))
+            continue
+        else:
+            inputs = []
+            for obj in objs:
+                tensor = histories.copy()
+                tensor.pop(0)
+                tensor.append((obj, img))
+                inputs.append(tensor)
+            if len(inputs) > 0:
+                predictions, argmax = idtr.predict(inputs)
+                predictions = predictions.numpy()
+                argmax = argmax.numpy()
+                if predictions[argmax] >= 0.5:
+                    obj = objs[argmax]
+                    histories.pop(0)
+                    histories.append((obj, img.copy()))
+                    image.draw_box(img, [obj])
+
+                print("==================")
+                print(predictions)
+                print(predictions[argmax])
 
         # Test human detection
         # image.draw_box(img, objs)

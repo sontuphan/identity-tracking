@@ -30,7 +30,7 @@ class DataManufacture():
         (img_width, img_height) = self.img_shape
         pipeline = tf.data.Dataset.from_generator(
             self.generator, args=[False],
-            output_types=(tf.float32, tf.float32, tf.bool),
+            output_types=(tf.float32, tf.float32, tf.int8),
             output_shapes=((self.hist_len, 4), (self.hist_len, img_width, img_height, 3), ()), )
         return pipeline
 
@@ -111,12 +111,20 @@ class DataManufacture():
             objs = frames[index]
             # Import positive label
             feature1 = tensor.copy()
-            label1 = True
+            label1 = 1  # True
             label_data.append(feature1)
             labels.append(label1)
-            # Import only one negative label
+            # Import all negative label
+            # for obj in objs:
+            #     if obj[0] != last_element[0]:
+            #         feature2 = tensor.copy()
+            #         label2 = 0  # False
+            #         feature2[-1] = obj
+            #         label_data.append(feature2)
+            #         labels.append(label2)
+            # Import one random negative label
             feature2 = tensor.copy()
-            label2 = False
+            label2 = 0  # False
             while feature2[-1][0] == last_element[0]:
                 feature2[-1] = random.choice(objs)
             label_data.append(feature2)
