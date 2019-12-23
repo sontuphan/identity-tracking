@@ -106,7 +106,7 @@ def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO9)
+    cap = cv.VideoCapture(VIDEO5)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
@@ -124,7 +124,7 @@ def predict():
         objs = hd.predict(img)
 
         if is_first_frames > 0:
-            obj_id = 0
+            obj_id = 1
             if len(objs) > obj_id:
                 is_first_frames -= 1
                 histories.append((objs[obj_id], img))
@@ -140,7 +140,7 @@ def predict():
                 predictions, argmax = idtr.predict(inputs)
                 predictions = predictions.numpy()
                 argmax = argmax.numpy()
-                if predictions[argmax] >= 0.7:
+                if predictions[argmax] >= 0.8:
                     obj = objs[argmax]
                     histories.pop(0)
                     histories.append((obj, img.copy()))
