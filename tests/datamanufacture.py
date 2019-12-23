@@ -37,5 +37,5 @@ def generate_data():
 
 
 def review_source():
-    dm = DataManufacture("MOT17-11", 16, 32)
+    dm = DataManufacture("MOT17-05", 16, 32)
     dm.review_source()
