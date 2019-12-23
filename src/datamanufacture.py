@@ -13,7 +13,7 @@ FRAME_SHAPE = (640, 480)
 
 
 class DataManufacture():
-    def __init__(self, data_name='MOT17-05', hist_len=32, batch_size=64,
+    def __init__(self, data_name='MOT17-05', hist_len=8, batch_size=64,
                  img_shape=(96, 96)):
         self.data_dir = 'data/MOT17Det/train/'
         self.data_name = data_name
@@ -142,7 +142,7 @@ class DataManufacture():
                 for i in range(hist_len):
                     element = self.get_obj_by_id(obj[0], frames[index + i])
                     tensor.append(element)
-            hist_data.append(tensor)
+                hist_data.append(tensor)
         return hist_data
 
     def get_obj_by_id(self, id, objs):
@@ -189,18 +189,3 @@ class DataManufacture():
                     stop -= 1
             frames.append(frame)
         return frames
-
-    def review_source(self):
-        dataset = self.gen_data_by_frame()
-
-        for index, frame in enumerate(dataset):
-            objs = map(self.convert_array_to_object, frame)
-            img = self.load_frame(index)
-            if img is not None:
-                image.draw_box(img, objs)
-                img = image.convert_pil_to_cv(img)
-
-                cv.imshow('Video', img)
-                if cv.waitKey(10) & 0xFF == ord('q'):
-                    break
-        cv.destroyAllWindows()

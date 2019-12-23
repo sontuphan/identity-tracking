@@ -15,39 +15,45 @@ IMAGE_SHAPE = (96, 96)
 class FeaturesExtractor(keras.Model):
     def __init__(self, tensor_length, units):
         super(FeaturesExtractor, self).__init__()
-        self.units = units
+        self.fc1_units = units[0]
+        self.fc2_units = units[1]
         self.tensor_length = tensor_length
         self.extractor = hub.KerasLayer(
             'https://tfhub.dev/google/imagenet/mobilenet_v2_050_96/feature_vector/4',
             trainable=False,
             input_shape=(IMAGE_SHAPE+(3,))
         )
-        self.fc = keras.layers.Dense(self.units, activation='relu')
+        self.fc1 = keras.layers.Dense(self.fc1_units, activation='relu')
+        self.fc2 = keras.layers.Dense(self.fc2_units, activation='relu')
 
     def call(self, x):
         (batch_size, _, _, _, _) = x.shape
         cnn_inputs = tf.reshape(
             x, [batch_size*self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
         logits = self.extractor(cnn_inputs)
-        fc_output = self.fc(logits)
+        fc1_output = self.fc1(logits)
+        fc2_output = self.fc2(fc1_output)
         features = tf.reshape(
-            fc_output, [batch_size, self.tensor_length, self.units])
+            fc2_output, [batch_size, self.tensor_length, self.fc2_units])
         return features
 
 
 class MovementExtractor(keras.Model):
     def __init__(self, tensor_length, units):
         super(MovementExtractor, self).__init__()
-        self.units = units
+        self.fc1_units = units[0]
+        self.fc2_units = units[1]
         self.tensor_length = tensor_length
-        self.fc = keras.layers.Dense(self.units, activation='relu')
+        self.fc1 = keras.layers.Dense(self.fc1_units, activation='relu')
+        self.fc2 = keras.layers.Dense(self.fc2_units, activation='relu')
 
     def call(self, x):
         (input_size, _, _) = x.shape
-        dim_inputs = tf.reshape(x, [input_size*self.tensor_length, 4])
-        fc_output = self.fc(dim_inputs)
+        bbox_inputs = tf.reshape(x, [input_size*self.tensor_length, 4])
+        fc1_output = self.fc1(bbox_inputs)
+        fc2_output = self.fc2(fc1_output)
         features = tf.reshape(
-            fc_output, [input_size, self.tensor_length, self.units])
+            fc2_output, [input_size, self.tensor_length, self.fc2_units])
         return features
 
 
@@ -73,12 +79,12 @@ class Decoder(keras.Model):
     def __init__(self, units):
         super(Decoder, self).__init__()
         self.gru_units = units[0]
-        self.dense_units = units[1]
+        self.fc_units = units[1]
         self.gru = keras.layers.GRU(self.gru_units,
                                     return_sequences=True,
                                     return_state=True,
                                     recurrent_initializer='glorot_uniform')
-        self.fc = keras.layers.Dense(self.dense_units, activation='relu')
+        self.fc = keras.layers.Dense(self.fc_units, activation='relu')
         self.classifier = keras.layers.Dense(1, activation='sigmoid')
 
     def call(self, x, state):
@@ -96,10 +102,10 @@ class IdentityTracking:
         self.tensor_length = 8
         self.batch_size = 64
         self.image_shape = IMAGE_SHAPE
-        self.encoder = Encoder(256)
-        self.decoder = Decoder([256, 128])
-        self.fextractor = FeaturesExtractor(self.tensor_length, 256)
-        self.mextractor = MovementExtractor(self.tensor_length, 128)
+        self.encoder = Encoder(1024)
+        self.decoder = Decoder([1024, 512])
+        self.fextractor = FeaturesExtractor(self.tensor_length, [1024, 512])
+        self.mextractor = MovementExtractor(self.tensor_length, [1024, 512])
 
         self.optimizer = keras.optimizers.Adam()
         self.loss = keras.losses.BinaryCrossentropy()

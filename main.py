@@ -39,6 +39,8 @@ if __name__ == "__main__":
                     datamanufacture.generate_data()
                 if func == "review_source":
                     datamanufacture.review_source()
+                if func == "review_hist_data":
+                    datamanufacture.review_hist_data()
 
             elif test == "identitytracking":
                 if func == "train":

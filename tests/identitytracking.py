@@ -33,9 +33,9 @@ def train():
         else:
             pipeline = pipeline.concatenate(next_pipeline)
 
-    dataset = pipeline.shuffle(128).batch(
+    dataset = pipeline.shuffle(256).batch(
         idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 5)
+    idtr.train(dataset, 10)
 
 
 def validate():
@@ -124,7 +124,7 @@ def predict():
         objs = hd.predict(img)
 
         if is_first_frames > 0:
-            obj_id = 1
+            obj_id = 0
             if len(objs) > obj_id:
                 is_first_frames -= 1
                 histories.append((objs[obj_id], img))
@@ -140,7 +140,7 @@ def predict():
                 predictions, argmax = idtr.predict(inputs)
                 predictions = predictions.numpy()
                 argmax = argmax.numpy()
-                if predictions[argmax] >= 0.5:
+                if predictions[argmax] >= 0.7:
                     obj = objs[argmax]
                     histories.pop(0)
                     histories.append((obj, img.copy()))
