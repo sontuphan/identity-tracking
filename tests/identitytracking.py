@@ -106,7 +106,7 @@ def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO5)
+    cap = cv.VideoCapture(VIDEO9)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 

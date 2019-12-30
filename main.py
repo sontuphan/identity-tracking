@@ -3,7 +3,7 @@ import sys
 import tensorflow as tf
 from tests import utils, datamanufacture, identitytracking
 from tests import humandetection
-from tests import extractor
+from tests import extractor, car
 
 tf.get_logger().setLevel('ERROR')
 
@@ -61,6 +61,18 @@ if __name__ == "__main__":
                     extractor.test_224()
                 if func == "test_inception":
                     extractor.test_inception()
+
+            elif test == "car":
+                if func == "test_camera":
+                    car.test_camera()
+                if func == "test_snapshot":
+                    car.test_snapshot()
+                if func == "test_action":
+                    car.test_action()
+                if func == "test_speed":
+                    car.test_speed()
+                if func == "test_general":
+                    car.test_general()
 
             else:
                 print("Error: Test file does not exist.")
