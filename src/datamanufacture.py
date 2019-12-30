@@ -10,15 +10,16 @@ from utils import image
 from utils.bbox import BBox, Object
 
 FRAME_SHAPE = (640, 480)
-IMAGE_SHAPE = (96, 96)
 
 
 class DataManufacture():
-    def __init__(self, data_name='MOT17-05', hist_len=32, batch_size=64):
+    def __init__(self, data_name='MOT17-05', hist_len=8, batch_size=64,
+                 img_shape=(96, 96)):
         self.data_dir = 'data/MOT17Det/train/'
         self.data_name = data_name
         self.hist_len = hist_len
         self.batch_size = batch_size
+        self.img_shape = img_shape
 
         config = configparser.ConfigParser()
         config.read(self.data_dir + self.data_name + '/seqinfo.ini')
@@ -26,10 +27,10 @@ class DataManufacture():
                          int(config['Sequence']['imHeight']))
 
     def input_pipeline(self):
-        (img_width, img_height) = IMAGE_SHAPE
+        (img_width, img_height) = self.img_shape
         pipeline = tf.data.Dataset.from_generator(
-            self.generator, args=[True],
-            output_types=(tf.float32, tf.float32, tf.bool),
+            self.generator, args=[False],
+            output_types=(tf.float32, tf.float32, tf.int8),
             output_shapes=((self.hist_len, 4), (self.hist_len, img_width, img_height, 3), ()), )
         return pipeline
 
@@ -69,10 +70,10 @@ class DataManufacture():
         return img_tensor
 
     def process_image(self, obj):
-        obj = self.convert_array_to_object(obj)
         img = self.load_frame(obj[2])
+        obj = self.convert_array_to_object(obj)
         cropped_img = image.crop(img, obj)
-        resized_img = image.resize(cropped_img, IMAGE_SHAPE)
+        resized_img = image.resize(cropped_img, self.img_shape)
         img_arr = image.convert_pil_to_cv(resized_img)
         return img_arr/255.0
 
@@ -110,12 +111,20 @@ class DataManufacture():
             objs = frames[index]
             # Import positive label
             feature1 = tensor.copy()
-            label1 = True
+            label1 = 1  # True
             label_data.append(feature1)
             labels.append(label1)
-            # Import only one negative label
+            # Import all negative label
+            # for obj in objs:
+            #     if obj[0] != last_element[0]:
+            #         feature2 = tensor.copy()
+            #         label2 = 0  # False
+            #         feature2[-1] = obj
+            #         label_data.append(feature2)
+            #         labels.append(label2)
+            # Import one random negative label
             feature2 = tensor.copy()
-            label2 = False
+            label2 = 0  # False
             while feature2[-1][0] == last_element[0]:
                 feature2[-1] = random.choice(objs)
             label_data.append(feature2)
@@ -133,7 +142,7 @@ class DataManufacture():
                 for i in range(hist_len):
                     element = self.get_obj_by_id(obj[0], frames[index + i])
                     tensor.append(element)
-            hist_data.append(tensor)
+                hist_data.append(tensor)
         return hist_data
 
     def get_obj_by_id(self, id, objs):
@@ -159,11 +168,13 @@ class DataManufacture():
             int(line[1]),  # label
             int(line[0]),  # frame
             float(line[8]),  # score
-            int(line[2]/width_scale),  # xmin
-            int(line[3]/height_scale),  # ymin
-            int(line[2]/width_scale)+int(line[4]/width_scale),  # xmax
-            int(line[3]/height_scale)+int(line[5]/height_scale)]  # ymax
-            , objs)
+            int((line[2] if line[2] > 0 else 0)/width_scale),  # xmin
+            int((line[3] if line[3] > 0 else 0)/height_scale),  # ymin
+            int((line[2]+line[4])/width_scale if (line[2]+line[4]) / \
+                width_scale < FRAME_SHAPE[0] else FRAME_SHAPE[0]-1),  # xmax
+            int((line[3]+line[5])/height_scale if (line[3]+line[5]) / \
+                height_scale < FRAME_SHAPE[1] else FRAME_SHAPE[1]-1)  # ymax
+        ], objs)
 
         objs = list(objs)
         stop = len(objs)
@@ -178,18 +189,3 @@ class DataManufacture():
                     stop -= 1
             frames.append(frame)
         return frames
-
-    def review_source(self):
-        dataset = self.gen_data_by_frame()
-
-        for index, frame in enumerate(dataset):
-            objs = map(self.convert_array_to_object, frame)
-            img = self.load_frame(index)
-            if img is not None:
-                image.draw_box(img, objs)
-                img = image.convert_pil_to_cv(img)
-
-                cv.imshow('Video', img)
-                if cv.waitKey(10) & 0xFF == ord('q'):
-                    break
-        cv.destroyAllWindows()

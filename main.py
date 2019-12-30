@@ -1,8 +1,9 @@
 import sys
 
 import tensorflow as tf
-from tests import utils, humandetection, datamanufacture
-from tests import shallowRNN, prototype, seq2seq, identitytracking
+from tests import utils, datamanufacture, identitytracking
+from tests import humandetection
+from tests import extractor
 
 tf.get_logger().setLevel('ERROR')
 
@@ -20,15 +21,15 @@ if __name__ == "__main__":
                     utils.crop_image()
 
             elif test == "humandetection":
-                if func == "with_camera":
+                if func == "test_with_camera":
                     humandetection.test_with_camera()
-                if func == "with_video1":
+                if func == "test_with_video_1":
                     humandetection.test_with_video(1)
-                if func == "with_video2":
+                if func == "test_with_video_2":
                     humandetection.test_with_video(2)
-                if func == "with_video3":
+                if func == "test_with_video_3":
                     humandetection.test_with_video(3)
-                if func == "with_video4":
+                if func == "test_with_video_4":
                     humandetection.test_with_video(4)
 
             elif test == "datamanufacture":
@@ -38,28 +39,28 @@ if __name__ == "__main__":
                     datamanufacture.generate_data()
                 if func == "review_source":
                     datamanufacture.review_source()
-
-            elif test == "shallowrnn":
-                if func == "train_net":
-                    shallowRNN.train_net()
-                if func == "run_net":
-                    shallowRNN.run_net()
-
-            elif test == "prototype":
-                if func == "draw_prototype":
-                    prototype.draw_prototype()
-
-            elif test == "seq2seq":
-                if func == "train_net":
-                    seq2seq.train_net()
-                if func == "run_net":
-                    seq2seq.run_net()
+                if func == "review_hist_data":
+                    datamanufacture.review_hist_data()
 
             elif test == "identitytracking":
                 if func == "train":
                     identitytracking.train()
+                if func == "validate":
+                    identitytracking.validate()
                 if func == "predict":
                     identitytracking.predict()
+
+            elif test == "visualization":
+                if func == "test_generator":
+                    extractor.test_generator()
+                if func == "test_pipeline":
+                    extractor.test_pipeline()
+                if func == "test_96":
+                    extractor.test_96()
+                if func == "test_224":
+                    extractor.test_224()
+                if func == "test_inception":
+                    extractor.test_inception()
 
             else:
                 print("Error: Test file does not exist.")
