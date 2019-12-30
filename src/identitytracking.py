@@ -55,37 +55,36 @@ class Encoder(keras.Model):
     def __init__(self, units):
         super(Encoder, self).__init__()
         self.units = units
-        # Recall: in gru cell, h = c
-        self.gru = keras.layers.GRU(self.units,
-                                    return_sequences=True,
-                                    return_state=True,
-                                    recurrent_initializer='glorot_uniform')
+        self.lstm = keras.layers.LSTM(self.units,
+                                      return_sequences=True,
+                                      return_state=True,
+                                      recurrent_initializer='glorot_uniform')
 
     def call(self, x, state):
-        _, hidden_state = self.gru(x, initial_state=state)
-        return hidden_state
+        _, h_state, c_state = self.lstm(x, initial_state=state)
+        return h_state, c_state
 
     def initialize_hidden_state(self, batch_size):
-        return tf.zeros((batch_size, self.units))
+        return [tf.zeros((batch_size, self.units)), tf.zeros((batch_size, self.units))]
 
 
 class Decoder(keras.Model):
     def __init__(self, units):
         super(Decoder, self).__init__()
-        self.gru_units = units[0]
+        self.lstm_units = units[0]
         self.fc_units = units[1]
-        self.gru = keras.layers.GRU(self.gru_units,
-                                    return_sequences=True,
-                                    return_state=True,
-                                    recurrent_initializer='glorot_uniform')
+        self.lstm = keras.layers.LSTM(self.lstm_units,
+                                      return_sequences=True,
+                                      return_state=True,
+                                      recurrent_initializer='glorot_uniform')
         self.fc = keras.layers.Dense(self.fc_units, activation='relu')
         self.classifier = keras.layers.Dense(1, activation='sigmoid')
 
     def call(self, x, state):
-        gru_output, _ = self.gru(x, initial_state=state)
-        batch_size, _, _ = gru_output.shape
-        gru_output = tf.reshape(gru_output, [batch_size, -1])
-        fc_output = self.fc(gru_output)
+        lstm_output, _, _ = self.lstm(x, initial_state=state)
+        batch_size, _, _ = lstm_output.shape
+        lstm_output = tf.reshape(lstm_output, [batch_size, -1])
+        fc_output = self.fc(lstm_output)
         classifier_output = self.classifier(fc_output)
         classifier_output = tf.reshape(classifier_output, [-1])
         return classifier_output
@@ -127,7 +126,8 @@ class IdentityTracking:
             x = tf.concat([mov_features, cnn_features], 2)
             encoder_input, decoder_input = tf.split(
                 x, [self.tensor_length-1, 1], axis=1)
-            decoder_state = self.encoder(encoder_input, encoder_state)
+            h_state, c_state = self.encoder(encoder_input, encoder_state)
+            decoder_state = [h_state, c_state]
             predictions = self.decoder(decoder_input, decoder_state)
             loss = self.loss(labels, predictions)
         variables = self.encoder.trainable_variables + self.decoder.trainable_variables + \
@@ -195,7 +195,8 @@ class IdentityTracking:
             x, [self.tensor_length-1, 1], axis=1)
         batch_inputs, _, _ = encoder_input.shape
         init_state = self.encoder.initialize_hidden_state(batch_inputs)
-        hidden_state = self.encoder(encoder_input, init_state)
+        h_state, c_state = self.encoder(encoder_input, init_state)
+        hidden_state = [h_state, c_state]
         predictions = self.decoder(decoder_input, hidden_state)
 
         return predictions, tf.math.argmax(predictions)
