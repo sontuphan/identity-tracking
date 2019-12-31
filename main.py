@@ -4,6 +4,7 @@ import tensorflow as tf
 from tests import utils, datamanufacture, identitytracking
 from tests import humandetection
 from tests import extractor, car
+from ohmni import start as ohmni
 
 tf.get_logger().setLevel('ERROR')
 
@@ -71,6 +72,10 @@ if __name__ == "__main__":
                     car.test_speed()
                 if func == "test_general":
                     car.test_general()
+
+            elif test == "ohmni":
+                if func == "start":
+                    ohmni.start()
 
             else:
                 print("Error: Test file does not exist.")

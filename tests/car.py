@@ -1,4 +1,3 @@
-import os
 import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,7 +6,6 @@ import time
 from utils import image, car
 from src.humandetection import HumanDetection
 from src.identitytracking import IdentityTracking
-from src.datamanufacture import DataManufacture
 
 HOST = "http://172.31.0.12"
 

@@ -42,17 +42,16 @@ def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO0)
+    cap = cv.VideoCapture(VIDEO5)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
     is_first_frames = idtr.tensor_length
     historical_boxes = []
     historical_obj_imgs = []
+
     while(cap.isOpened()):
-
         timer = cv.getTickCount()
-
         ret, frame = cap.read()
 
         if ret != True:
@@ -76,6 +75,7 @@ def predict():
         else:
             bboxes_batch = []
             obj_imgs_batch = []
+
             for obj in objs:
                 box, obj_img = idtr.formaliza_data(obj, img)
                 boxes_tensor = historical_boxes.copy()
@@ -100,6 +100,7 @@ def predict():
             print(predictions)
             print(predictions[argmax])
 
+
         # Test human detection
         # image.draw_objs(img, objs)
         # Test historical frames
@@ -117,5 +118,6 @@ def predict():
             break
 
         # Calculate Frames per second (FPS)
+        print("Estimated Time: ", (cv.getTickCount()-timer)/cv.getTickFrequency())
         fps = cv.getTickFrequency() / (cv.getTickCount() - timer)
         print("FPS: {:.1f}".format(fps))
