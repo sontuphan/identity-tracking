@@ -25,7 +25,7 @@ def test_with_camera():
 
         img = image.convert_cv_to_pil(img)
         objs = hd.predict(img)
-        image.draw_box(img, objs)
+        image.draw_objs(img, objs)
         img = image.convert_pil_to_cv(img)
 
         cv.imshow("Debug", img)
@@ -55,7 +55,7 @@ def test_with_video(id):
         if ret == True:
             img = image.convert_cv_to_pil(frame)
             objs = hd.predict(img)
-            image.draw_box(img, objs)
+            image.draw_objs(img, objs)
             img = image.convert_pil_to_cv(img)
 
             cv.imshow('Video', img)

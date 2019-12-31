@@ -6,6 +6,7 @@ import tensorflow as tf
 from tensorflow import keras
 import tensorflow_hub as hub
 import numpy as np
+import cv2 as cv
 
 from utils import image
 
@@ -119,6 +120,14 @@ class IdentityTracking:
         self.checkpoint.restore(
             tf.train.latest_checkpoint(self.checkpoint_dir))
 
+    def formaliza_data(self, obj, frame):
+        box = [obj.bbox.xmin/640, obj.bbox.ymin/480,
+               obj.bbox.xmax/640, obj.bbox.ymax/480]
+        cropped_obj_img = image.crop(frame, obj)
+        resized_obj_img = image.resize(cropped_obj_img, self.image_shape)
+        obj_img = image.convert_pil_to_cv(resized_obj_img)/255.0
+        return box, obj_img
+
     @tf.function
     def train_step(self, bboxes, cnn_inputs, labels, encoder_state):
         with tf.GradientTape() as tape:
@@ -169,27 +178,9 @@ class IdentityTracking:
             self.loss_metric.reset_states()
             self.accuracy_metric.reset_states()
 
-    def predict(self, inputs):
-        bboxes = []
-        imgs = []
-        for row in inputs:
-            bbox_tensor = []
-            img_tensor = []
-            for (obj, img) in row:
-                bbox = np.array(
-                    [obj.bbox.xmin/640, obj.bbox.ymin/480, obj.bbox.xmax/640, obj.bbox.ymax/480])
-                cropped_img = image.crop(img, obj)
-                resized_img = image.resize(cropped_img, self.image_shape)
-                img_arr = image.convert_pil_to_cv(resized_img)/255.0
-                bbox_tensor.append(bbox)
-                img_tensor.append(img_arr)
-            bboxes.append(bbox_tensor)
-            imgs.append(img_tensor)
-        bboxes = tf.stack(bboxes)
-        imgs = tf.stack(imgs)
-
-        mov_features = self.mextractor(bboxes)
-        cnn_features = self.fextractor(imgs)
+    def predict(self, bboxes_batch, obj_imgs_batch):
+        mov_features = self.mextractor(np.array(bboxes_batch))
+        cnn_features = self.fextractor(np.array(obj_imgs_batch))
         x = tf.concat([mov_features, cnn_features], 2)
         encoder_input, decoder_input = tf.split(
             x, [self.tensor_length-1, 1], axis=1)

@@ -71,7 +71,7 @@ def review_source():
         objs = map(dm.convert_array_to_object, frame)
         img = dm.load_frame(index)
         if img is not None:
-            image.draw_box(img, objs)
+            image.draw_objs(img, objs)
             img = image.convert_pil_to_cv(img)
 
             cv.imshow('Video', img)

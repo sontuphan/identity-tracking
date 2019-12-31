@@ -45,8 +45,6 @@ if __name__ == "__main__":
             elif test == "identitytracking":
                 if func == "train":
                     identitytracking.train()
-                if func == "validate":
-                    identitytracking.validate()
                 if func == "predict":
                     identitytracking.predict()
 

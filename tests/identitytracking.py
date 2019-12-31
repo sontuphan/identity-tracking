@@ -38,81 +38,20 @@ def train():
     idtr.train(dataset, 5)
 
 
-def validate():
-    idtr = IdentityTracking()
-    dm = DataManufacture('MOT17-05', idtr.tensor_length,
-                         idtr.batch_size, idtr.image_shape)
-
-    ground_objs = dm.gen_data_by_frame()
-    is_first_frames = idtr.tensor_length
-    histories = []
-    for frame, objs in enumerate(ground_objs):
-        img = dm.load_frame(frame)
-
-        objs = map(dm.convert_array_to_object, objs)
-        objs = list(objs)
-
-        if is_first_frames > 0:
-            obj_id = 0
-            if len(objs) > obj_id:
-                is_first_frames -= 1
-                histories.append((objs[obj_id], img))
-            continue
-        else:
-            inputs = []
-            for obj in objs:
-                tensor = histories.copy()
-                tensor.pop(0)
-                tensor.append((obj, img))
-                inputs.append(tensor)
-            if len(inputs) > 0:
-                predictions, argmax = idtr.predict(inputs)
-                predictions = predictions.numpy()
-                argmax = argmax.numpy()
-                if predictions[argmax] >= 0.5:
-                    obj = objs[argmax]
-                    histories.pop(0)
-                    histories.append((obj, img.copy()))
-                    image.draw_box(img, [obj])
-
-                print("==================")
-                print(predictions)
-                print(predictions[argmax])
-
-        # Test human detection
-        # image.draw_box(img, objs)
-        # Test historical frames
-        his_img = None
-        for history in histories:
-            (_obj, _img) = history
-            if his_img is None:
-                cropped_img = image.crop(_img, _obj)
-                resized_img = image.resize(cropped_img, (96, 96))
-                his_img = image.convert_pil_to_cv(resized_img)
-            else:
-                cropped_img = image.crop(_img, _obj)
-                resized_img = image.resize(cropped_img, (96, 96))
-                his_img = np.concatenate(
-                    (his_img, image.convert_pil_to_cv(resized_img)), axis=1)
-        cv.imshow('History', his_img)
-
-        img = image.convert_pil_to_cv(img)
-        cv.imshow('Video', img)
-        if cv.waitKey(10) & 0xFF == ord('q'):
-            break
-
-
 def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO9)
+    cap = cv.VideoCapture(VIDEO0)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
     is_first_frames = idtr.tensor_length
-    histories = []
+    historical_boxes = []
+    historical_obj_imgs = []
     while(cap.isOpened()):
+
+        timer = cv.getTickCount()
 
         ret, frame = cap.read()
 
@@ -123,55 +62,60 @@ def predict():
         img = image.resize(img, (640, 480))
         objs = hd.predict(img)
 
+        if len(objs) == 0:
+            continue
+
         if is_first_frames > 0:
             obj_id = 0
             if len(objs) > obj_id:
                 is_first_frames -= 1
-                histories.append((objs[obj_id], img))
+                box, obj_img = idtr.formaliza_data(objs[obj_id], img)
+                historical_boxes.append(box)
+                historical_obj_imgs.append(obj_img)
             continue
         else:
-            inputs = []
+            bboxes_batch = []
+            obj_imgs_batch = []
             for obj in objs:
-                tensor = histories.copy()
-                tensor.pop(0)
-                tensor.append((obj, img))
-                inputs.append(tensor)
-            if len(inputs) > 0:
-                predictions, argmax = idtr.predict(inputs)
-                predictions = predictions.numpy()
-                argmax = argmax.numpy()
-                if predictions[argmax] >= 0.7:
-                    obj = objs[argmax]
-                    histories.pop(0)
-                    histories.append((obj, img.copy()))
-                    image.draw_box(img, [obj])
-                # else:
-                #     obj = DataManufacture().convert_array_to_object([0, 0, 0, 0., 0, 0, 0, 0])
-                #     histories.pop(0)
-                #     histories.append((obj, img.copy()))
+                box, obj_img = idtr.formaliza_data(obj, img)
+                boxes_tensor = historical_boxes.copy()
+                boxes_tensor.pop(0)
+                boxes_tensor.append(box)
+                obj_imgs_tensor = historical_obj_imgs.copy()
+                obj_imgs_tensor.pop(0)
+                obj_imgs_tensor.append(obj_img)
+                bboxes_batch.append(boxes_tensor)
+                obj_imgs_batch.append(obj_imgs_tensor)
 
-                print("==================")
-                print(predictions)
-                print(predictions[argmax])
+            predictions, argmax = idtr.predict(bboxes_batch, obj_imgs_batch)
+            predictions = predictions.numpy()
+            argmax = argmax.numpy()
+            if predictions[argmax] >= 0.7:
+                obj = objs[argmax]
+                historical_boxes = bboxes_batch[argmax].copy()
+                historical_obj_imgs = obj_imgs_batch[argmax].copy()
+                image.draw_objs(img, [obj])
+
+            print("==================")
+            print(predictions)
+            print(predictions[argmax])
 
         # Test human detection
-        # image.draw_box(img, objs)
+        # image.draw_objs(img, objs)
         # Test historical frames
         his_img = None
-        for history in histories:
-            (_obj, _img) = history
+        for _img in historical_obj_imgs:
             if his_img is None:
-                cropped_img = image.crop(_img, _obj)
-                resized_img = image.resize(cropped_img, (96, 96))
-                his_img = image.convert_pil_to_cv(resized_img)
+                his_img = _img
             else:
-                cropped_img = image.crop(_img, _obj)
-                resized_img = image.resize(cropped_img, (96, 96))
-                his_img = np.concatenate(
-                    (his_img, image.convert_pil_to_cv(resized_img)), axis=1)
+                his_img = np.concatenate((his_img, _img), axis=1)
         cv.imshow('History', his_img)
 
         img = image.convert_pil_to_cv(img)
         cv.imshow('Video', img)
         if cv.waitKey(10) & 0xFF == ord('q'):
             break
+
+        # Calculate Frames per second (FPS)
+        fps = cv.getTickFrequency() / (cv.getTickCount() - timer)
+        print("FPS: {:.1f}".format(fps))
