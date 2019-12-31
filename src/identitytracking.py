@@ -6,7 +6,6 @@ import tensorflow as tf
 from tensorflow import keras
 import tensorflow_hub as hub
 import numpy as np
-import cv2 as cv
 
 from utils import image
 
@@ -94,7 +93,7 @@ class Decoder(keras.Model):
 
 class IdentityTracking:
     def __init__(self):
-        self.tensor_length = 4
+        self.tensor_length = 8
         self.batch_size = 64
         self.image_shape = IMAGE_SHAPE
         self.encoder = Encoder(512)

@@ -7,7 +7,7 @@ from src.humandetection import HumanDetection
 from ohmni.tracker import IdentityTracking
 
 VIDEO0 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/3rd-camera.mp4")
+    os.path.abspath(__file__)), "../data/video/chaplin.mp4")
 VIDEO5 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-05-SDP.mp4")
 
@@ -16,7 +16,7 @@ def start():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO5)
+    cap = cv.VideoCapture(VIDEO0)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
