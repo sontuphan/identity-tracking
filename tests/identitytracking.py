@@ -11,13 +11,15 @@ VIDEO0 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/chaplin.mp4")
 VIDEO5 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-05-SDP.mp4")
+VIDEO7 = os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "../data/video/MOT17-07-SDP.mp4")
 VIDEO9 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-09-FRCNN.mp4")
 
 
 def train():
     idtr = IdentityTracking()
-    names = ['MOT17-05']
+    names = ['MOT17-05', 'MOT17-09']
     # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
     #          'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
@@ -40,7 +42,7 @@ def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO9)
+    cap = cv.VideoCapture(VIDEO7)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
@@ -63,7 +65,7 @@ def predict():
             continue
 
         if is_first_frames > 0:
-            obj_id = 0
+            obj_id = 5
             if len(objs) > obj_id:
                 is_first_frames -= 1
                 box, obj_img = idtr.formaliza_data(objs[obj_id], img)
@@ -98,7 +100,6 @@ def predict():
             print(predictions)
             print(predictions[argmax])
 
-
         # Test human detection
         # image.draw_objs(img, objs)
         # Test historical frames
@@ -109,6 +110,7 @@ def predict():
             else:
                 his_img = np.concatenate((his_img, _img), axis=1)
         cv.imshow('History', his_img)
+        cv.moveWindow('History', 90, 650)
 
         img = image.convert_pil_to_cv(img)
         cv.imshow('Video', img)

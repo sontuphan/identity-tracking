@@ -93,7 +93,7 @@ class Decoder(keras.Model):
 
 class IdentityTracking:
     def __init__(self):
-        self.tensor_length = 8
+        self.tensor_length = 4
         self.batch_size = 64
         self.image_shape = IMAGE_SHAPE
         self.encoder = Encoder(512)
