@@ -1,10 +1,10 @@
 import sys
 
-# import tensorflow as tf
-# from tests import utils, datamanufacture, identitytracking
-# from tests import extractor, humandetection
-# from pycar import start as car
-# from ohmni import start as ohmni
+import tensorflow as tf
+from tests import utils, datamanufacture, identitytracking
+from tests import extractor, humandetection
+from pycar import start as car
+from ohmni import start as ohmni
 
 # tf.get_logger().setLevel('ERROR')
 
