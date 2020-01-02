@@ -77,19 +77,19 @@ def start():
         # Test human detection
         # image.draw_objs(img, objs)
         # Test historical frames
-        his_img = None
-        for _img in historical_obj_imgs:
-            if his_img is None:
-                his_img = _img
-            else:
-                his_img = np.concatenate((his_img, _img), axis=1)
-        cv.imshow('History', his_img)
-        cv.moveWindow('History', 90, 650)
+        # his_img = None
+        # for _img in historical_obj_imgs:
+        #     if his_img is None:
+        #         his_img = _img
+        #     else:
+        #         his_img = np.concatenate((his_img, _img), axis=1)
+        # cv.imshow('History', his_img)
+        # cv.moveWindow('History', 90, 650)
 
-        img = image.convert_pil_to_cv(img)
-        cv.imshow('Video', img)
-        if cv.waitKey(10) & 0xFF == ord('q'):
-            break
+        # img = image.convert_pil_to_cv(img)
+        # cv.imshow('Video', img)
+        # if cv.waitKey(10) & 0xFF == ord('q'):
+        #     break
 
         # Calculate Frames per second (FPS)
         print("Estimated Time: ", (cv.getTickCount()-timer)/cv.getTickFrequency())
