@@ -3,7 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
-from utils import image, car
+from utils import image
+from pycar import car
 from src.humandetection import HumanDetection
 from src.identitytracking import IdentityTracking
 
@@ -46,7 +47,7 @@ def test_speed():
     picar.stop()
 
 
-def test_general():
+def start():
     picar = car.Car(HOST)
     picar.speed(4)
     idtr = IdentityTracking()
