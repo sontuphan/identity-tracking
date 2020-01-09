@@ -4,7 +4,6 @@ import tensorflow as tf
 from tests import utils, datamanufacture, identitytracking
 from tests import extractor, humandetection
 from pycar import start as car
-from ohmni import start as ohmni
 
 tf.get_logger().setLevel('ERROR')
 
@@ -70,10 +69,6 @@ if __name__ == "__main__":
             car.test_speed()
         if sys.argv[2] == "start":
             car.start()
-
-    elif sys.argv[1] == '--ohmni':
-        if sys.argv[2] == 'start':
-            ohmni.start()
 
     else:
         print("Error: Invalid option!")

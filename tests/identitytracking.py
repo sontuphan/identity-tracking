@@ -59,7 +59,7 @@ def predict():
             break
         
         imgstart = time.time()
-        cv_img = cv.resize(frame, (640, 480))
+        cv_img = cv.resize(frame, (300, 300))
         pil_img = image.convert_cv_to_pil(cv_img)
         imgend = time.time()
         print('Image estimated time {:.4f}'.format(imgend-imgstart))

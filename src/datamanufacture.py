@@ -9,7 +9,7 @@ import tensorflow as tf
 from utils import image
 from utils.bbox import BBox, Object
 
-FRAME_SHAPE = (640, 480)
+FRAME_SHAPE = (300, 300)
 
 
 class DataManufacture():

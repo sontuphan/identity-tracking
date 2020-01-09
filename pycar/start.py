@@ -61,7 +61,7 @@ def start():
     while(True):
         frame = buffer.get()
         img = image.convert_cv_to_pil(frame)
-        img = image.resize(img, (640, 480))
+        img = image.resize(img, (300, 300))
         objs = hd.predict(img)
 
         if len(objs) == 0:
