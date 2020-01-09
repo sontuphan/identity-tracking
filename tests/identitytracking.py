@@ -65,7 +65,7 @@ def predict():
         print('Image estimated time {:.4f}'.format(imgend-imgstart))
         
         tpustart = time.time()
-        objs = hd.predict(pil_img)
+        objs = hd.predict(cv_img)
         tpuend = time.time()
         print('TPU estimated time {:.4f}'.format(tpuend-tpustart))
 
