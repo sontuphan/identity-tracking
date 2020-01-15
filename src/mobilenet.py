@@ -1,16 +1,13 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import os
-import time
-import tensorflow as tf
-from tensorflow import lite
 import tflite_runtime.interpreter as tflite
 import numpy as np
 
 
 EDGETPU_SHARED_LIB = 'libedgetpu.so.1'
 MODELS = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../models/tpu/mobilenet_v2_features_extractor.tflite")
+    os.path.abspath(__file__)), "../models/tpu/mobilenet_v2_features_extractor_quant_postprocess_edgetpu.tflite")
 
 
 class Mobilenet():
@@ -30,7 +27,6 @@ class Mobilenet():
             self.interpreter.set_tensor(input_details[0]['index'], [obj])
             self.interpreter.invoke()
             feature = self.interpreter.get_tensor(output_details[0]['index'])
-
             if re is None:
                 re = feature
             else:

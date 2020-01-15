@@ -7,6 +7,8 @@ from tensorflow import keras
 import numpy as np
 import cv2 as cv
 
+from src.mobilenet import Mobilenet
+
 IMAGE_SHAPE = (96, 96)
 HISTORICAL_LENGTH = 4
 
@@ -16,19 +18,20 @@ class FeaturesExtractor(keras.Model):
         super(FeaturesExtractor, self).__init__()
         self.fc_units = units
         self.tensor_length = tensor_length
-        self.extractor = tf.keras.applications.MobileNetV2(
-            weights="imagenet",
-            include_top=False,
-            input_shape=(IMAGE_SHAPE+(3,)))
-        self.extractor.trainable = False
+        # self.extractor = tf.keras.applications.MobileNetV2(
+        #     weights="imagenet",
+        #     include_top=False,
+        #     input_shape=(IMAGE_SHAPE+(3,)))
+        # self.extractor.trainable = False
+        self.extractor = Mobilenet()
         self.ga = tf.keras.layers.GlobalAveragePooling2D()
         self.fc = keras.layers.Dense(self.fc_units, activation='relu')
 
     def call(self, x):
         (batch_size, _, _, _, _) = x.shape
-        cnn_inputs = tf.reshape(
+        cnn_inputs = np.reshape(
             x, [batch_size*self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
-        extractor_output = self.extractor(cnn_inputs)
+        extractor_output = self.extractor.predict(cnn_inputs)
         ga_output = self.ga(extractor_output)
         fc_output = self.fc(ga_output)
         features = tf.reshape(
