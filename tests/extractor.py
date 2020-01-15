@@ -5,7 +5,6 @@ import tensorflow_hub as hub
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import random
 
 from src.datamanufacture import DataManufacture
 from utils import image

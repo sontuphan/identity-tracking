@@ -53,10 +53,11 @@ def test_with_video(id):
     while(cap.isOpened()):
         ret, frame = cap.read()
         if ret == True:
-            img = image.convert_cv_to_pil(frame)
-            objs = hd.predict(img)
-            image.draw_objs(img, objs)
-            img = image.convert_pil_to_cv(img)
+            cv_img = cv.resize(frame, (300, 300))
+            pil_img = image.convert_cv_to_pil(cv_img)
+            objs = hd.predict(cv_img)
+            image.draw_objs(pil_img, objs)
+            img = image.convert_pil_to_cv(pil_img)
 
             cv.imshow('Video', img)
             if cv.waitKey(10) & 0xFF == ord('q'):

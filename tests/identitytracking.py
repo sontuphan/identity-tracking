@@ -20,7 +20,7 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 def train():
     idtr = IdentityTracking()
-    names = ['MOT17-05', 'MOT17-09']
+    names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
     # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
     #          'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
@@ -43,7 +43,7 @@ def predict():
     idtr = IdentityTracking()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO5)
+    cap = cv.VideoCapture(VIDEO9)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
@@ -57,13 +57,13 @@ def predict():
 
         if ret != True:
             break
-        
+
         imgstart = time.time()
         cv_img = cv.resize(frame, (300, 300))
         pil_img = image.convert_cv_to_pil(cv_img)
         imgend = time.time()
         print('Image estimated time {:.4f}'.format(imgend-imgstart))
-        
+
         tpustart = time.time()
         objs = hd.predict(cv_img)
         tpuend = time.time()
