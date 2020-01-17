@@ -15,7 +15,7 @@ VIDEO4 = os.path.join(os.path.dirname(
 
 
 def test_with_camera():
-    hd = humandetection.HumanDetection(0.6)
+    hd = humandetection.HumanDetection(0.7)
     cam = camera.Camera()
     stream = cam.get_stream()
     print("You can press Q button to terminate the process!")
@@ -36,7 +36,7 @@ def test_with_camera():
 
 
 def test_with_video(id):
-    hd = humandetection.HumanDetection(0.55)
+    hd = humandetection.HumanDetection(0.7)
     if id == 1:
         video = VIDEO1
     if id == 2:
