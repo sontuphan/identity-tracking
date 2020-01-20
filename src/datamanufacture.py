@@ -18,6 +18,7 @@ class DataManufacture():
         self.data_dir = 'data/MOT17Det/train/'
         self.data_name = data_name
         self.hist_len = hist_len
+        self.fault_tolerance = int((self.hist_len - 1)/2)
         self.batch_size = batch_size
         self.img_shape = img_shape
 
@@ -36,7 +37,8 @@ class DataManufacture():
 
     def generator(self, verbose=False):
         frames = self.gen_data_by_frame()
-        hist_data = self.gen_data_by_hist(frames, self.hist_len)
+        hist_data = self.gen_data_by_hist(
+            frames, self.hist_len, self.fault_tolerance)
         label_data, labels = self.gen_data_by_label(frames, hist_data)
 
         avg_time_iter = 0
@@ -132,20 +134,34 @@ class DataManufacture():
 
         return label_data, labels
 
-    def gen_data_by_hist(self, frames, hist_len):
+    def gen_data_by_hist(self, frames, hist_len, fault_tolerance):
         hist_data = []
         for index, objs in enumerate(frames):
             if len(frames) < index + hist_len:
                 break
             for obj in objs:
+                # Traing naive data
                 tensor = []
                 for i in range(hist_len):
-                    element = self.get_obj_by_id(obj[0], frames[index + i])
+                    element = self.get_obj_by_id(
+                        obj[0], frames[index + i], False)
                     tensor.append(element)
                 hist_data.append(tensor)
+                # Training fault tolerance
+                modified_tensor = tensor.copy()
+                for _ in range(fault_tolerance):
+                    repaced_index = random.randrange(0, hist_len-1)
+                    modified_tensor[repaced_index] = self.get_obj_by_id(
+                        obj[0], frames[index + repaced_index], True)
+                hist_data.append(modified_tensor)
         return hist_data
 
-    def get_obj_by_id(self, id, objs):
+    def get_obj_by_id(self, id, objs, negative):
+        if negative and len(objs) >= 2:
+            obj = random.choice(objs)
+            while obj[0] == id:
+                obj = random.choice(objs)
+            return obj
         for obj in objs:
             if obj[0] == id:
                 return obj

@@ -54,7 +54,8 @@ class ExtractorInception(tf.keras.Model):
 
 
 def test_generator():
-    dm = DataManufacture(hist_len=8, img_shape=(96, 96))
+    HISTORICAL_FRAMES = 8
+    dm = DataManufacture(hist_len=HISTORICAL_FRAMES, img_shape=(96, 96))
     dataset = dm.generator()
     dataset = iter(dataset)
 
@@ -68,7 +69,7 @@ def test_generator():
                 tensor = np.concatenate((tensor, img), axis=1)
         plt.imshow(tensor)
         plt.text(0, 0, str(label))
-        for i in range(8):
+        for i in range(HISTORICAL_FRAMES):
             plt.text(0, dm.img_shape[1]*(2+i/4), str(coordinates[i]))
         plt.show()
 
