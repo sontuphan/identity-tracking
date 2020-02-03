@@ -73,10 +73,9 @@ class IdentityTracking:
         self.image_shape = IMAGE_SHAPE
         self.iextractor = ImageExtractor(self.tensor_length)
         self.fextractor = FeaturesExtractor(self.tensor_length, 512)
-        self.mextractor = MovementExtractor(self.tensor_length, 256)
+        self.mextractor = MovementExtractor(self.tensor_length, 128)
 
         self.mymodel = keras.Sequential([
-            keras.layers.LSTM(512),
             keras.layers.Dense(512, activation='relu'),
             keras.layers.Dense(64, activation='relu'),
             keras.layers.Dense(1, activation='sigmoid')
@@ -119,7 +118,12 @@ class IdentityTracking:
         with tf.GradientTape() as tape:
             mov_features = self.mextractor(bboxes)
             cnn_features = self.fextractor(cnn_inputs)
-            x = tf.concat([mov_features, cnn_features], 2)
+            features = tf.concat([mov_features, cnn_features], 2)
+            encode, decode = tf.split(
+                features, [self.tensor_length-1, 1], axis=1)
+            l_input = tf.reduce_mean(encode, 1)
+            r_input = tf.reshape(decode, [self.batch_size, -1])
+            x = tf.concat([l_input, r_input], 1)
             y = self.mymodel(x)
             predictions = tf.reshape(y, [-1])
             loss = self.loss(labels, predictions)
@@ -176,7 +180,13 @@ class IdentityTracking:
         print('CNN estimated time {:.4f}'.format(cnnend-cnnstart))
 
         clstart = time.time()
-        x = tf.concat([mov_features, cnn_features], 2)
+        features = tf.concat([mov_features, cnn_features], 2)
+        (input_size, _, _) = features.shape
+        encode, decode = tf.split(
+            features, [self.tensor_length-1, 1], axis=1)
+        l_input = tf.reduce_mean(encode, 1)
+        r_input = tf.reshape(decode, [input_size, -1])
+        x = tf.concat([l_input, r_input], 1)
         y = self.mymodel(x)
         predictions = tf.reshape(y, [-1])
         clend = time.time()
