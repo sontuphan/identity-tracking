@@ -7,28 +7,9 @@ from tensorflow import keras
 import numpy as np
 import cv2 as cv
 
-from src.mobilenet import Mobilenet
 
 IMAGE_SHAPE = (96, 96)
-FEATURE_SHAPE = (3, 3, 1280)
 HISTORICAL_LENGTH = 4
-
-
-class ImageExtractor():
-    def __init__(self, tensor_length):
-        self.tensor_length = tensor_length
-        self.extractor = Mobilenet()
-
-    def call(self, x, training):
-        (batch_size, _, _, _, _) = x.shape
-        if training:
-            x = x.numpy()
-        cnn_inputs = np.reshape(
-            x, [batch_size*self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
-        extractor_output = self.extractor.predict(cnn_inputs)
-        features = tf.reshape(
-            extractor_output, [batch_size, self.tensor_length, FEATURE_SHAPE[0], FEATURE_SHAPE[1], FEATURE_SHAPE[2]])
-        return features
 
 
 class FeaturesExtractor(keras.Model):
@@ -36,34 +17,37 @@ class FeaturesExtractor(keras.Model):
         super(FeaturesExtractor, self).__init__()
         self.fc_units = units
         self.tensor_length = tensor_length
-        self.ga = tf.keras.layers.GlobalAveragePooling2D()
+        self.conv = tf.keras.layers.Conv2D(
+            32, 3, activation='relu', input_shape=(IMAGE_SHAPE+(3,)))
+        self.ft = tf.keras.layers.Flatten()
         self.fc = keras.layers.Dense(self.fc_units, activation='relu')
 
     def call(self, x):
         (batch_size, _, _, _, _) = x.shape
-        features = tf.reshape(
-            x, [batch_size*self.tensor_length, FEATURE_SHAPE[0], FEATURE_SHAPE[1], FEATURE_SHAPE[2]])
-        ga_output = self.ga(features)
-        fc_output = self.fc(ga_output)
+        imgs = tf.reshape(
+            x, [batch_size*self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
+        conv_output = self.conv(imgs)
+        ft_output = self.ft(conv_output)
+        fc_output = self.fc(ft_output)
         output = tf.reshape(
             fc_output, [batch_size, self.tensor_length, self.fc_units])
         return output
 
 
-class MovementExtractor(keras.Model):
+class MotionExtractor(keras.Model):
     def __init__(self, tensor_length, units):
-        super(MovementExtractor, self).__init__()
+        super(MotionExtractor, self).__init__()
         self.fc_units = units
         self.tensor_length = tensor_length
         self.fc = keras.layers.Dense(self.fc_units, activation='relu')
 
     def call(self, x):
-        (input_size, _, _) = x.shape
-        bbox_inputs = tf.reshape(x, [input_size*self.tensor_length, 4])
+        (batch_size, _, _) = x.shape
+        bbox_inputs = tf.reshape(x, [batch_size*self.tensor_length, 4])
         fc_output = self.fc(bbox_inputs)
-        features = tf.reshape(
-            fc_output, [input_size, self.tensor_length, self.fc_units])
-        return features
+        output = tf.reshape(
+            fc_output, [batch_size, self.tensor_length, self.fc_units])
+        return output
 
 
 class IdentityTracking:
@@ -71,12 +55,11 @@ class IdentityTracking:
         self.tensor_length = HISTORICAL_LENGTH
         self.batch_size = 64
         self.image_shape = IMAGE_SHAPE
-        self.iextractor = ImageExtractor(self.tensor_length)
-        self.fextractor = FeaturesExtractor(self.tensor_length, 512)
-        self.mextractor = MovementExtractor(self.tensor_length, 128)
+        self.fextractor = FeaturesExtractor(self.tensor_length, 128)
+        self.mextractor = MotionExtractor(self.tensor_length, 128)
 
         self.mymodel = keras.Sequential([
-            keras.layers.Dense(512, activation='relu'),
+            keras.layers.Dense(256, activation='relu', input_shape=(512,)),
             keras.layers.Dense(64, activation='relu'),
             keras.layers.Dense(1, activation='sigmoid')
         ])
@@ -114,11 +97,11 @@ class IdentityTracking:
         return box, obj_img
 
     @tf.function
-    def train_step(self, bboxes, cnn_inputs, labels):
+    def train_step(self, bboxes, imgs, labels):
         with tf.GradientTape() as tape:
             mov_features = self.mextractor(bboxes)
-            cnn_features = self.fextractor(cnn_inputs)
-            features = tf.concat([mov_features, cnn_features], 2)
+            app_features = self.fextractor(imgs)
+            features = tf.concat([mov_features, app_features], 2)
             encode, decode = tf.split(
                 features, [self.tensor_length-1, 1], axis=1)
             l_input = tf.reduce_mean(encode, 1)
@@ -127,6 +110,7 @@ class IdentityTracking:
             y = self.mymodel(x)
             predictions = tf.reshape(y, [-1])
             loss = self.loss(labels, predictions)
+
         variables = self.mymodel.trainable_variables + \
             self.mextractor.trainable_variables + self.fextractor.trainable_variables
         gradients = tape.gradient(loss, variables)
@@ -148,8 +132,7 @@ class IdentityTracking:
                 while True:
                     bboxes, imgs, labels = next(iterator)
                     steps_per_epoch += 1
-                    cnn_inputs = self.iextractor.call(imgs, True)
-                    self.train_step(bboxes, cnn_inputs, labels)
+                    self.train_step(bboxes, imgs, labels)
             except StopIteration:
                 pass
 
@@ -173,19 +156,17 @@ class IdentityTracking:
         print('MOV estimated time {:.4f}'.format(movend-movstart))
 
         cnnstart = time.time()
-        cnn_inputs = self.iextractor.call(
-            np.array(obj_imgs_batch, dtype=np.float32), False)
-        cnn_features = self.fextractor(cnn_inputs)
+        app_features = self.fextractor(np.array(obj_imgs_batch))
         cnnend = time.time()
         print('CNN estimated time {:.4f}'.format(cnnend-cnnstart))
 
         clstart = time.time()
-        features = tf.concat([mov_features, cnn_features], 2)
-        (input_size, _, _) = features.shape
+        features = tf.concat([mov_features, app_features], 2)
+        (batch_size, _, _) = features.shape
         encode, decode = tf.split(
             features, [self.tensor_length-1, 1], axis=1)
         l_input = tf.reduce_mean(encode, 1)
-        r_input = tf.reshape(decode, [input_size, -1])
+        r_input = tf.reshape(decode, [batch_size, -1])
         x = tf.concat([l_input, r_input], 1)
         y = self.mymodel(x)
         predictions = tf.reshape(y, [-1])
