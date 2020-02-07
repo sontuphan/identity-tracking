@@ -5,7 +5,7 @@ import numpy as np
 
 from utils import image
 from src.humandetection import HumanDetection
-from src.identitytracking import IdentityTracking
+from src.tracker import Tracker
 from src.datamanufacture import DataManufacture
 
 VIDEO0 = os.path.join(os.path.dirname(
@@ -19,7 +19,7 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 
 def train():
-    idtr = IdentityTracking()
+    idtr = Tracker()
     names = ['MOT17-05']
     # names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
     # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
@@ -41,10 +41,10 @@ def train():
 
 
 def predict():
-    idtr = IdentityTracking()
+    idtr = Tracker()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO9)
+    cap = cv.VideoCapture(VIDEO7)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 

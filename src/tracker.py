@@ -3,22 +3,22 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import os
 import time
 import tensorflow as tf
-from tensorflow import keras
+from tensorflow import keras, lite
 import numpy as np
 import cv2 as cv
 
-
 IMAGE_SHAPE = (96, 96)
 HISTORICAL_LENGTH = 4
+MODELS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                      "../models/tpu/ohmnilabs_features_extractor_quant_postprocess.tflite")
 
 
-class FeaturesExtractor(keras.Model):
-    def __init__(self, tensor_length, units):
-        super(FeaturesExtractor, self).__init__()
-        self.fc_units = units
+class AppearanceExtractor(keras.Model):
+    def __init__(self, tensor_length):
+        super(AppearanceExtractor, self).__init__()
+        self.fc_units = 128
         self.tensor_length = tensor_length
-        self.conv = tf.keras.layers.Conv2D(
-            32, 3, activation='relu', input_shape=(IMAGE_SHAPE+(3,)))
+        self.conv = tf.keras.layers.Conv2D(32, 3, activation='relu')
         self.ft = tf.keras.layers.Flatten()
         self.fc = keras.layers.Dense(self.fc_units, activation='relu')
 
@@ -29,15 +29,15 @@ class FeaturesExtractor(keras.Model):
         conv_output = self.conv(imgs)
         ft_output = self.ft(conv_output)
         fc_output = self.fc(ft_output)
-        output = tf.reshape(
+        y = tf.reshape(
             fc_output, [batch_size, self.tensor_length, self.fc_units])
-        return output
+        return y
 
 
 class MotionExtractor(keras.Model):
-    def __init__(self, tensor_length, units):
+    def __init__(self, tensor_length):
         super(MotionExtractor, self).__init__()
-        self.fc_units = units
+        self.fc_units = 128
         self.tensor_length = tensor_length
         self.fc = keras.layers.Dense(self.fc_units, activation='relu')
 
@@ -45,24 +45,41 @@ class MotionExtractor(keras.Model):
         (batch_size, _, _) = x.shape
         bbox_inputs = tf.reshape(x, [batch_size*self.tensor_length, 4])
         fc_output = self.fc(bbox_inputs)
-        output = tf.reshape(
+        y = tf.reshape(
             fc_output, [batch_size, self.tensor_length, self.fc_units])
-        return output
+        return y
 
 
-class IdentityTracking:
+class Classification(keras.Model):
+    def __init__(self, tensor_length):
+        super(Classification, self).__init__()
+        self.tensor_length = tensor_length
+        self.fc1 = keras.layers.Dense(256, activation='relu')
+        self.fc2 = keras.layers.Dense(64, activation='relu')
+        self.fc3 = keras.layers.Dense(1, activation='sigmoid')
+
+    def call(self, app_features, mot_features):
+        features = tf.concat([app_features, mot_features], 2)
+        (batch_size, _, _) = features.shape
+        encode, decode = tf.split(features, [self.tensor_length-1, 1], axis=1)
+        l_input = tf.reduce_mean(encode, 1)
+        r_input = tf.reshape(decode, [batch_size, -1])
+        x = tf.concat([l_input, r_input], 1)
+        fc1_output = self.fc1(x)
+        fc2_output = self.fc2(fc1_output)
+        y = self.fc3(fc2_output)
+        return y
+
+
+class Tracker:
     def __init__(self):
         self.tensor_length = HISTORICAL_LENGTH
         self.batch_size = 64
         self.image_shape = IMAGE_SHAPE
-        self.fextractor = FeaturesExtractor(self.tensor_length, 128)
-        self.mextractor = MotionExtractor(self.tensor_length, 128)
 
-        self.mymodel = keras.Sequential([
-            keras.layers.Dense(256, activation='relu', input_shape=(512,)),
-            keras.layers.Dense(64, activation='relu'),
-            keras.layers.Dense(1, activation='sigmoid')
-        ])
+        self.apex = AppearanceExtractor(self.tensor_length)
+        self.moex = MotionExtractor(self.tensor_length)
+        self.clsf = Classification(self.tensor_length)
 
         self.optimizer = keras.optimizers.Adam()
         self.loss = keras.losses.BinaryCrossentropy()
@@ -75,11 +92,29 @@ class IdentityTracking:
             str(self.image_shape[0]) + '_' + str(self.tensor_length)
         self.checkpoint_prefix = os.path.join(self.checkpoint_dir, 'ckpt')
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
-                                              fextractor=self.fextractor,
-                                              mextractor=self.mextractor,
-                                              mymodel=self.mymodel)
+                                              apex=self.apex,
+                                              moex=self.moex,
+                                              clsf=self.clsf)
         self.checkpoint.restore(
             tf.train.latest_checkpoint(self.checkpoint_dir))
+
+    # def convertFeaturesExtractor(self, pipeline):
+    #     def representative_dataset_gen():
+    #         for tensor in pipeline.shuffle(256).take(100):
+    #             _, imgs, _ = tensor
+    #             input_value = tf.reshape(
+    #                 imgs, [1, self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
+    #             yield [input_value]
+    #     model = self.apex
+    #     converter = lite.TFLiteConverter.from_keras_model(model)
+    #     converter.optimizations = [lite.Optimize.DEFAULT]
+    #     converter.representative_dataset = representative_dataset_gen
+    #     converter.target_spec.supported_ops = [
+    #         lite.OpsSet.TFLITE_BUILTINS_INT8]
+    #     converter.inference_input_type = tf.uint8
+    #     converter.inference_output_type = tf.uint8
+    #     tflite_quant_model = converter.convert()
+    #     open(MODELS, 'wb').write(tflite_quant_model)
 
     def formaliza_data(self, obj, frame):
         xmin = 0 if obj.bbox.xmin < 0 else obj.bbox.xmin
@@ -99,20 +134,15 @@ class IdentityTracking:
     @tf.function
     def train_step(self, bboxes, imgs, labels):
         with tf.GradientTape() as tape:
-            mov_features = self.mextractor(bboxes)
-            app_features = self.fextractor(imgs)
-            features = tf.concat([mov_features, app_features], 2)
-            encode, decode = tf.split(
-                features, [self.tensor_length-1, 1], axis=1)
-            l_input = tf.reduce_mean(encode, 1)
-            r_input = tf.reshape(decode, [self.batch_size, -1])
-            x = tf.concat([l_input, r_input], 1)
-            y = self.mymodel(x)
-            predictions = tf.reshape(y, [-1])
+            app_features = self.apex(imgs)
+            mot_features = self.moex(bboxes)
+            output = self.clsf(app_features, mot_features)
+            predictions = tf.reshape(output, [-1])
             loss = self.loss(labels, predictions)
 
-        variables = self.mymodel.trainable_variables + \
-            self.mextractor.trainable_variables + self.fextractor.trainable_variables
+        variables = self.clsf.trainable_variables + \
+            self.apex.trainable_variables + self.moex.trainable_variables
+        print(variables)
         gradients = tape.gradient(loss, variables)
         self.optimizer.apply_gradients(zip(gradients, variables))
 
@@ -122,12 +152,9 @@ class IdentityTracking:
 
     def train(self, dataset, epochs=10):
         for epoch in range(epochs):
-
             start = time.time()
             steps_per_epoch = 0
-
             iterator = iter(dataset)
-
             try:
                 while True:
                     bboxes, imgs, labels = next(iterator)
@@ -150,27 +177,21 @@ class IdentityTracking:
             self.accuracy_metric.reset_states()
 
     def predict(self, bboxes_batch, obj_imgs_batch):
-        movstart = time.time()
-        mov_features = self.mextractor(np.array(bboxes_batch))
-        movend = time.time()
-        print('MOV estimated time {:.4f}'.format(movend-movstart))
 
-        cnnstart = time.time()
-        app_features = self.fextractor(np.array(obj_imgs_batch))
-        cnnend = time.time()
-        print('CNN estimated time {:.4f}'.format(cnnend-cnnstart))
+        apexstart = time.time()
+        app_features = self.apex(np.array(obj_imgs_batch))
+        apexend = time.time()
+        print('APEX estimated time {:.4f}'.format(apexend-apexstart))
 
-        clstart = time.time()
-        features = tf.concat([mov_features, app_features], 2)
-        (batch_size, _, _) = features.shape
-        encode, decode = tf.split(
-            features, [self.tensor_length-1, 1], axis=1)
-        l_input = tf.reduce_mean(encode, 1)
-        r_input = tf.reshape(decode, [batch_size, -1])
-        x = tf.concat([l_input, r_input], 1)
-        y = self.mymodel(x)
-        predictions = tf.reshape(y, [-1])
-        clend = time.time()
-        print('Classification estimated time {:.4f}'.format(clend-clstart))
+        moexstart = time.time()
+        mot_features = self.moex(np.array(bboxes_batch))
+        moexend = time.time()
+        print('MOEX estimated time {:.4f}'.format(moexend-moexstart))
+
+        clsfstart = time.time()
+        output = self.clsf(app_features, mot_features)
+        predictions = tf.reshape(output, [-1])
+        clsfend = time.time()
+        print('CLSF estimated time {:.4f}'.format(clsfend-clsfstart))
 
         return predictions, tf.math.argmax(predictions)

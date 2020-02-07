@@ -6,7 +6,7 @@ import time
 from utils import image
 from pycar import car
 from src.humandetection import HumanDetection
-from src.identitytracking import IdentityTracking
+from src.tracker import Tracker
 
 HOST = "http://172.31.0.12"
 
@@ -50,7 +50,7 @@ def test_speed():
 def start():
     picar = car.Car(HOST)
     picar.speed(4)
-    idtr = IdentityTracking()
+    idtr = Tracker()
     hd = HumanDetection()
 
     buffer = picar.get_snapshot()

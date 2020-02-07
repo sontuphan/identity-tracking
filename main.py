@@ -1,7 +1,7 @@
 import sys
 
 import tensorflow as tf
-from tests import utils, datamanufacture, identitytracking
+from tests import utils, datamanufacture, tracker
 from tests import extractor, humandetection, mobilenet
 from pycar import start as car
 
@@ -40,11 +40,11 @@ if __name__ == "__main__":
             if sys.argv[3] == "review_hist_data":
                 datamanufacture.review_hist_data()
 
-        elif sys.argv[2] == "identitytracking":
+        elif sys.argv[2] == "tracker":
             if sys.argv[3] == "train":
-                identitytracking.train()
+                tracker.train()
             if sys.argv[3] == "predict":
-                identitytracking.predict()
+                tracker.predict()
 
         elif sys.argv[2] == "visualization":
             if sys.argv[3] == "test_generator":
