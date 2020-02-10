@@ -20,8 +20,8 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 def train():
     idtr = Tracker()
-    names = ['MOT17-05']
-    # names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
+    # names = ['MOT17-05']
+    names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
     # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
     #          'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
@@ -37,14 +37,14 @@ def train():
 
     dataset = pipeline.shuffle(256).batch(
         idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 5)
+    idtr.train(dataset, 15)
 
 
 def predict():
     idtr = Tracker()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO7)
+    cap = cv.VideoCapture(VIDEO9)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 

@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import os
 import time
 import tensorflow as tf
-from tensorflow import keras, lite
+from tensorflow import keras
 import numpy as np
 import cv2 as cv
 
@@ -34,20 +34,20 @@ class AppearanceExtractor(keras.Model):
         return y
 
 
-class MotionExtractor(keras.Model):
-    def __init__(self, tensor_length):
-        super(MotionExtractor, self).__init__()
-        self.fc_units = 128
-        self.tensor_length = tensor_length
-        self.fc = keras.layers.Dense(self.fc_units, activation='relu')
+# class MotionExtractor(keras.Model):
+#     def __init__(self, tensor_length):
+#         super(MotionExtractor, self).__init__()
+#         self.fc_units = 128
+#         self.tensor_length = tensor_length
+#         self.fc = keras.layers.Dense(self.fc_units, activation='relu')
 
-    def call(self, x):
-        (batch_size, _, _) = x.shape
-        bbox_inputs = tf.reshape(x, [batch_size*self.tensor_length, 4])
-        fc_output = self.fc(bbox_inputs)
-        y = tf.reshape(
-            fc_output, [batch_size, self.tensor_length, self.fc_units])
-        return y
+#     def call(self, x):
+#         (batch_size, _, _) = x.shape
+#         bbox_inputs = tf.reshape(x, [batch_size*self.tensor_length, 4])
+#         fc_output = self.fc(bbox_inputs)
+#         y = tf.reshape(
+#             fc_output, [batch_size, self.tensor_length, self.fc_units])
+#         return y
 
 
 class Classification(keras.Model):
@@ -58,10 +58,14 @@ class Classification(keras.Model):
         self.fc2 = keras.layers.Dense(64, activation='relu')
         self.fc3 = keras.layers.Dense(1, activation='sigmoid')
 
-    def call(self, app_features, mot_features):
-        features = tf.concat([app_features, mot_features], 2)
+    # def call(self, app_features, mot_features):
+    def call(self, app_features):
+        features = app_features
+        # features = tf.concat([app_features, mot_features], 2)
         (batch_size, _, _) = features.shape
         encode, decode = tf.split(features, [self.tensor_length-1, 1], axis=1)
+        print("encode:", encode.shape)
+        print("decode:", decode.shape)
         l_input = tf.reduce_mean(encode, 1)
         r_input = tf.reshape(decode, [batch_size, -1])
         x = tf.concat([l_input, r_input], 1)
@@ -78,7 +82,7 @@ class Tracker:
         self.image_shape = IMAGE_SHAPE
 
         self.apex = AppearanceExtractor(self.tensor_length)
-        self.moex = MotionExtractor(self.tensor_length)
+        # self.moex = MotionExtractor(self.tensor_length)
         self.clsf = Classification(self.tensor_length)
 
         self.optimizer = keras.optimizers.Adam()
@@ -93,28 +97,10 @@ class Tracker:
         self.checkpoint_prefix = os.path.join(self.checkpoint_dir, 'ckpt')
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
                                               apex=self.apex,
-                                              moex=self.moex,
+                                              #   moex=self.moex,
                                               clsf=self.clsf)
         self.checkpoint.restore(
             tf.train.latest_checkpoint(self.checkpoint_dir))
-
-    # def convertFeaturesExtractor(self, pipeline):
-    #     def representative_dataset_gen():
-    #         for tensor in pipeline.shuffle(256).take(100):
-    #             _, imgs, _ = tensor
-    #             input_value = tf.reshape(
-    #                 imgs, [1, self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
-    #             yield [input_value]
-    #     model = self.apex
-    #     converter = lite.TFLiteConverter.from_keras_model(model)
-    #     converter.optimizations = [lite.Optimize.DEFAULT]
-    #     converter.representative_dataset = representative_dataset_gen
-    #     converter.target_spec.supported_ops = [
-    #         lite.OpsSet.TFLITE_BUILTINS_INT8]
-    #     converter.inference_input_type = tf.uint8
-    #     converter.inference_output_type = tf.uint8
-    #     tflite_quant_model = converter.convert()
-    #     open(MODELS, 'wb').write(tflite_quant_model)
 
     def formaliza_data(self, obj, frame):
         xmin = 0 if obj.bbox.xmin < 0 else obj.bbox.xmin
@@ -135,13 +121,15 @@ class Tracker:
     def train_step(self, bboxes, imgs, labels):
         with tf.GradientTape() as tape:
             app_features = self.apex(imgs)
-            mot_features = self.moex(bboxes)
-            output = self.clsf(app_features, mot_features)
+            # mot_features = self.moex(bboxes)
+            output = self.clsf(app_features)
+            # output = self.clsf(app_features, mot_features)
             predictions = tf.reshape(output, [-1])
             loss = self.loss(labels, predictions)
 
-        variables = self.clsf.trainable_variables + \
-            self.apex.trainable_variables + self.moex.trainable_variables
+        variables = self.clsf.trainable_variables + self.apex.trainable_variables
+        # variables = self.clsf.trainable_variables + \
+        #     self.apex.trainable_variables + self.moex.trainable_variables
         print(variables)
         gradients = tape.gradient(loss, variables)
         self.optimizer.apply_gradients(zip(gradients, variables))
@@ -183,13 +171,14 @@ class Tracker:
         apexend = time.time()
         print('APEX estimated time {:.4f}'.format(apexend-apexstart))
 
-        moexstart = time.time()
-        mot_features = self.moex(np.array(bboxes_batch))
-        moexend = time.time()
-        print('MOEX estimated time {:.4f}'.format(moexend-moexstart))
+        # moexstart = time.time()
+        # mot_features = self.moex(np.array(bboxes_batch))
+        # moexend = time.time()
+        # print('MOEX estimated time {:.4f}'.format(moexend-moexstart))
 
         clsfstart = time.time()
-        output = self.clsf(app_features, mot_features)
+        output = self.clsf(app_features)
+        # output = self.clsf(app_features, mot_features)
         predictions = tf.reshape(output, [-1])
         clsfend = time.time()
         print('CLSF estimated time {:.4f}'.format(clsfend-clsfstart))
