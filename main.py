@@ -37,8 +37,8 @@ if __name__ == "__main__":
                 datamanufacture.generate_data()
             if sys.argv[3] == "review_source":
                 datamanufacture.review_source()
-            if sys.argv[3] == "review_hist_data":
-                datamanufacture.review_hist_data()
+            if sys.argv[3] == "gen_triplets":
+                datamanufacture.gen_triplets()
 
         elif sys.argv[2] == "tracker":
             if sys.argv[3] == "train":

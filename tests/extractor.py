@@ -55,7 +55,7 @@ class ExtractorInception(tf.keras.Model):
 
 def test_generator():
     HISTORICAL_FRAMES = 8
-    dm = DataManufacture(hist_len=HISTORICAL_FRAMES, img_shape=(96, 96))
+    dm = DataManufacture(img_shape=(96, 96))
     dataset = dm.generator()
     dataset = iter(dataset)
 
@@ -75,7 +75,7 @@ def test_generator():
 
 
 def test_pipeline():
-    dm = DataManufacture(hist_len=8, img_shape=(96, 96))
+    dm = DataManufacture(img_shape=(96, 96))
     pipeline = dm.input_pipeline()
     pipeline = pipeline.shuffle(128)
 
@@ -100,8 +100,8 @@ def test_pipeline():
 
 def test_96():
     IMAGE_SHAPE = (96, 96)
-    dm = DataManufacture(hist_len=8, img_shape=IMAGE_SHAPE)
-    dataset = dm.gen_data_by_frame()
+    dm = DataManufacture(img_shape=IMAGE_SHAPE)
+    dataset = dm.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
@@ -124,8 +124,8 @@ def test_96():
 
 def test_224():
     IMAGE_SHAPE = (224, 224)
-    dm = DataManufacture(hist_len=8, img_shape=IMAGE_SHAPE)
-    dataset = dm.gen_data_by_frame()
+    dm = DataManufacture(img_shape=IMAGE_SHAPE)
+    dataset = dm.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
@@ -148,8 +148,8 @@ def test_224():
 
 def test_inception():
     IMAGE_SHAPE = (299, 299)
-    dm = DataManufacture(hist_len=8, img_shape=IMAGE_SHAPE)
-    dataset = dm.gen_data_by_frame()
+    dm = DataManufacture(img_shape=IMAGE_SHAPE)
+    dataset = dm.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:

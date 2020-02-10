@@ -7,7 +7,7 @@ from src.datamanufacture import DataManufacture
 
 def generate_small_data():
     batch_size = 32
-    dm = DataManufacture("MOT17-05", 8, batch_size)
+    dm = DataManufacture("MOT17-05", batch_size)
     pipeline = dm.input_pipeline()
 
     dataset = pipeline.shuffle(128).batch(batch_size, drop_remainder=True)
@@ -18,36 +18,36 @@ def generate_small_data():
         while True:
             steps_per_epoch += 1
             data = next(iteractor)
-            rnn_inputs, cnn_inputs, labels = data
+            imgs, bboxes = data
     except StopIteration:
         pass
 
     print('Steps per epoch: {}'.format(steps_per_epoch))
-    print('Output shapes:', rnn_inputs.shape, cnn_inputs.shape, labels.shape)
+    print('Output shapes:', imgs.shape, bboxes.shape)
 
 
 def generate_data():
     batch_size = 32
-    dm = DataManufacture("MOT17-02", 32, batch_size)
+    dm = DataManufacture("MOT17-02", batch_size)
     pipeline = dm.input_pipeline()
-    next_dm = DataManufacture("MOT17-04", 32, batch_size)
+    next_dm = DataManufacture("MOT17-04", batch_size)
     next_pipeline = next_dm.input_pipeline()
 
     pipeline.concatenate(next_pipeline)
 
     dataset = pipeline.shuffle(128).batch(batch_size, drop_remainder=True)
-    rnn_inputs, cnn_inputs, labels = next(iter(dataset))
-    print(rnn_inputs.shape, cnn_inputs.shape, labels.shape)
+    imgs, bboxes = next(iter(dataset))
+    print(imgs, bboxes)
 
 
-def review_hist_data():
-    dm = DataManufacture("MOT17-05", 8, 32)
-    frames = dm.gen_data_by_frame()
-    hist_data = dm.gen_data_by_hist(frames, 8)
+def gen_triplets():
+    dm = DataManufacture("MOT17-05", 32)
+    frames = dm.gen_frames()
+    triplets = dm.gen_triplets(frames)
 
-    for tensor in hist_data:
+    for triplet in triplets:
         imgs = None
-        for obj in tensor:
+        for obj in triplet:
             frame = dm.load_frame(obj[2])
             obj = dm.convert_array_to_object(obj)
             img = image.crop(frame, obj)
@@ -57,15 +57,15 @@ def review_hist_data():
                 imgs = img
             else:
                 imgs = np.concatenate((imgs, img), axis=1)
-        cv.imshow('Video', imgs)
+        cv.imshow('Triplet', imgs)
         if cv.waitKey(500) & 0xFF == ord('q'):
             break
     cv.destroyAllWindows()
 
 
 def review_source():
-    dm = DataManufacture("MOT17-05", 8, 32)
-    dataset = dm.gen_data_by_frame()
+    dm = DataManufacture("MOT17-05", 32)
+    dataset = dm.gen_frames()
 
     for index, frame in enumerate(dataset):
         objs = map(dm.convert_array_to_object, frame)

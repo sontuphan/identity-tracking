@@ -8,99 +8,55 @@ import numpy as np
 import cv2 as cv
 
 IMAGE_SHAPE = (96, 96)
-HISTORICAL_LENGTH = 4
 MODELS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                       "../models/tpu/ohmnilabs_features_extractor_quant_postprocess.tflite")
 
 
-class AppearanceExtractor(keras.Model):
-    def __init__(self, tensor_length):
-        super(AppearanceExtractor, self).__init__()
-        self.fc_units = 128
-        self.tensor_length = tensor_length
-        self.conv = tf.keras.layers.Conv2D(32, 3, activation='relu')
-        self.ft = tf.keras.layers.Flatten()
-        self.fc = keras.layers.Dense(self.fc_units, activation='relu')
+class Extractor(keras.Model):
+    def __init__(self):
+        super(Extractor, self).__init__()
+        self.conv = keras.applications.MobileNetV2(
+            input_shape=(96, 96, 3), include_top=False, weights='imagenet')
+        self.conv.trainable = False
+        self.ga = keras.layers.GlobalAveragePooling2D()
+        self.fc = keras.layers.Dense(256, activation='sigmoid')
 
-    def call(self, x):
-        (batch_size, _, _, _, _) = x.shape
-        imgs = tf.reshape(
-            x, [batch_size*self.tensor_length, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3])
+    def call(self, imgs, bboxes):
         conv_output = self.conv(imgs)
-        ft_output = self.ft(conv_output)
-        fc_output = self.fc(ft_output)
-        y = tf.reshape(
-            fc_output, [batch_size, self.tensor_length, self.fc_units])
-        return y
-
-
-# class MotionExtractor(keras.Model):
-#     def __init__(self, tensor_length):
-#         super(MotionExtractor, self).__init__()
-#         self.fc_units = 128
-#         self.tensor_length = tensor_length
-#         self.fc = keras.layers.Dense(self.fc_units, activation='relu')
-
-#     def call(self, x):
-#         (batch_size, _, _) = x.shape
-#         bbox_inputs = tf.reshape(x, [batch_size*self.tensor_length, 4])
-#         fc_output = self.fc(bbox_inputs)
-#         y = tf.reshape(
-#             fc_output, [batch_size, self.tensor_length, self.fc_units])
-#         return y
-
-
-class Classification(keras.Model):
-    def __init__(self, tensor_length):
-        super(Classification, self).__init__()
-        self.tensor_length = tensor_length
-        self.fc1 = keras.layers.Dense(256, activation='relu')
-        self.fc2 = keras.layers.Dense(64, activation='relu')
-        self.fc3 = keras.layers.Dense(1, activation='sigmoid')
-
-    # def call(self, app_features, mot_features):
-    def call(self, app_features):
-        features = app_features
-        # features = tf.concat([app_features, mot_features], 2)
-        (batch_size, _, _) = features.shape
-        encode, decode = tf.split(features, [self.tensor_length-1, 1], axis=1)
-        print("encode:", encode.shape)
-        print("decode:", decode.shape)
-        l_input = tf.reduce_mean(encode, 1)
-        r_input = tf.reshape(decode, [batch_size, -1])
-        x = tf.concat([l_input, r_input], 1)
-        fc1_output = self.fc1(x)
-        fc2_output = self.fc2(fc1_output)
-        y = self.fc3(fc2_output)
-        return y
+        ga_output = self.ga(conv_output)
+        fc_output = self.fc(ga_output)
+        features = tf.concat([fc_output, bboxes], 1)
+        return features
 
 
 class Tracker:
     def __init__(self):
-        self.tensor_length = HISTORICAL_LENGTH
         self.batch_size = 64
         self.image_shape = IMAGE_SHAPE
 
-        self.apex = AppearanceExtractor(self.tensor_length)
-        # self.moex = MotionExtractor(self.tensor_length)
-        self.clsf = Classification(self.tensor_length)
-
+        self.extractor = Extractor()
         self.optimizer = keras.optimizers.Adam()
-        self.loss = keras.losses.BinaryCrossentropy()
 
         self.loss_metric = keras.metrics.Mean(name='train_loss')
-        self.accuracy_metric = keras.metrics.BinaryAccuracy(
-            name='train_accurary')
+        # self.accuracy_metric = keras.metrics.BinaryAccuracy(
+        #     name='train_accurary')
 
         self.checkpoint_dir = './models/idtr/training_checkpoints_' + \
-            str(self.image_shape[0]) + '_' + str(self.tensor_length)
+            str(self.image_shape[0]) + '_trilet'
         self.checkpoint_prefix = os.path.join(self.checkpoint_dir, 'ckpt')
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
-                                              apex=self.apex,
-                                              #   moex=self.moex,
-                                              clsf=self.clsf)
+                                              extractor=self.extractor)
         self.checkpoint.restore(
             tf.train.latest_checkpoint(self.checkpoint_dir))
+
+    def loss_function(self, afs, pfs, nfs):
+        # loss = ||afs-pfs||^2 - ||afs-nfs||^2 + a iff loss >= 0
+        # loss = 0 iff loss < 0
+        lloss = tf.linalg.normalize(afs - pfs, ord='euclidean', axis=1)
+        rloss = tf.linalg.normalize(afs - nfs, ord='euclidean', axis=1)
+        alpha = tf.fill([self.batch_size, 1], tf.constant(1, dtype=tf.float32))
+        loss = lloss[1] - rloss[1] + alpha
+        return tf.exp(loss)
 
     def formaliza_data(self, obj, frame):
         xmin = 0 if obj.bbox.xmin < 0 else obj.bbox.xmin
@@ -118,25 +74,20 @@ class Tracker:
         return box, obj_img
 
     @tf.function
-    def train_step(self, bboxes, imgs, labels):
+    def train_step(self, anis, anbs, pis, pbs, nis, nbs):
         with tf.GradientTape() as tape:
-            app_features = self.apex(imgs)
-            # mot_features = self.moex(bboxes)
-            output = self.clsf(app_features)
-            # output = self.clsf(app_features, mot_features)
-            predictions = tf.reshape(output, [-1])
-            loss = self.loss(labels, predictions)
+            afs = self.extractor(anis, anbs)
+            pfs = self.extractor(pis, pbs)
+            nfs = self.extractor(nis, nbs)
+            loss = self.loss_function(afs, pfs, nfs)
 
-        variables = self.clsf.trainable_variables + self.apex.trainable_variables
-        # variables = self.clsf.trainable_variables + \
-        #     self.apex.trainable_variables + self.moex.trainable_variables
-        print(variables)
+        variables = self.extractor.trainable_variables
         gradients = tape.gradient(loss, variables)
         self.optimizer.apply_gradients(zip(gradients, variables))
 
         self.loss_metric(loss)
-        self.accuracy_metric(labels, predictions)
-        return labels, predictions
+        # self.accuracy_metric(labels, predictions)
+        return afs, pfs, nfs
 
     def train(self, dataset, epochs=10):
         for epoch in range(epochs):
@@ -145,9 +96,20 @@ class Tracker:
             iterator = iter(dataset)
             try:
                 while True:
-                    bboxes, imgs, labels = next(iterator)
+                    imgs, bboxes = next(iterator)
+                    anis, pis, nis = tf.split(imgs, [1, 1, 1], axis=1)
+                    anis = tf.reshape(
+                        anis, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
+                    pis = tf.reshape(
+                        pis, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
+                    nis = tf.reshape(
+                        nis, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
+                    anbs, pbs, nbs = tf.split(bboxes, [1, 1, 1], axis=1)
+                    anbs = tf.reshape(anbs, [self.batch_size, 4])
+                    pbs = tf.reshape(pbs, [self.batch_size, 4])
+                    nbs = tf.reshape(nbs, [self.batch_size, 4])
                     steps_per_epoch += 1
-                    self.train_step(bboxes, imgs, labels)
+                    self.train_step(anis, anbs, pis, pbs, nis, nbs)
             except StopIteration:
                 pass
 
@@ -157,30 +119,17 @@ class Tracker:
             print('Epoch {}'.format(epoch + 1))
             print('\tSteps per epoch: {}'.format(steps_per_epoch))
             print('\tLoss Metric {:.4f}'.format(self.loss_metric.result()))
-            print('\tAccuracy Metric {:.4f}'.format(
-                self.accuracy_metric.result()*100))
+            # print('\tAccuracy Metric {:.4f}'.format(self.accuracy_metric.result()*100))
             print('\tTime taken for 1 epoch {:.4f} sec\n'.format(end - start))
 
             self.loss_metric.reset_states()
-            self.accuracy_metric.reset_states()
+            # self.accuracy_metric.reset_states()
 
-    def predict(self, bboxes_batch, obj_imgs_batch):
+    def predict(self, imgs, bboxes):
 
-        apexstart = time.time()
-        app_features = self.apex(np.array(obj_imgs_batch))
-        apexend = time.time()
-        print('APEX estimated time {:.4f}'.format(apexend-apexstart))
+        estart = time.time()
+        vectors = self.extractor(np.array(imgs), np.array(bboxes))
+        eend = time.time()
+        print('Extractor estimated time {:.4f}'.format(eend-estart))
 
-        # moexstart = time.time()
-        # mot_features = self.moex(np.array(bboxes_batch))
-        # moexend = time.time()
-        # print('MOEX estimated time {:.4f}'.format(moexend-moexstart))
-
-        clsfstart = time.time()
-        output = self.clsf(app_features)
-        # output = self.clsf(app_features, mot_features)
-        predictions = tf.reshape(output, [-1])
-        clsfend = time.time()
-        print('CLSF estimated time {:.4f}'.format(clsfend-clsfstart))
-
-        return predictions, tf.math.argmax(predictions)
+        return vectors

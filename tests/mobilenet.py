@@ -23,7 +23,7 @@ def convert():
         input_shape=(IMAGE_SHAPE+(3,)))
     model.trainable = False
 
-    dm = DataManufacture(hist_len=4, img_shape=IMAGE_SHAPE)
+    dm = DataManufacture(img_shape=IMAGE_SHAPE)
     pipeline = dm.input_pipeline()
 
     def representative_dataset_gen():

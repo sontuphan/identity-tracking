@@ -20,15 +20,14 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 def train():
     idtr = Tracker()
-    # names = ['MOT17-05']
-    names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
+    names = ['MOT17-05']
+    # names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
     # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
     #          'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
     pipeline = None
     for name in names:
-        generator = DataManufacture(name, idtr.tensor_length,
-                                    idtr.batch_size, idtr.image_shape)
+        generator = DataManufacture(name, idtr.batch_size, idtr.image_shape)
         next_pipeline = generator.input_pipeline()
         if pipeline is None:
             pipeline = next_pipeline
@@ -37,22 +36,21 @@ def train():
 
     dataset = pipeline.shuffle(256).batch(
         idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 15)
+    idtr.train(dataset, 5)
 
 
 def predict():
     idtr = Tracker()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO9)
+    cap = cv.VideoCapture(VIDEO7)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
-    is_first_frames = idtr.tensor_length
-    historical_boxes = []
-    historical_obj_imgs = []
+    prev_vector = None
 
     while(cap.isOpened()):
+        print("======================================")
         timer = cv.getTickCount()
         ret, frame = cap.read()
 
@@ -73,61 +71,53 @@ def predict():
         if len(objs) == 0:
             continue
 
-        if is_first_frames > 0:
+        if prev_vector is None:
             obj_id = 0
-            if len(objs) > obj_id:
-                is_first_frames -= 1
-                box, obj_img = idtr.formaliza_data(objs[obj_id], cv_img)
-                historical_boxes.append(box)
-                historical_obj_imgs.append(obj_img)
-            continue
+            if len(objs) <= obj_id:
+                continue
+            box, obj_img = idtr.formaliza_data(objs[obj_id], cv_img)
+            prev_vector = idtr.predict([obj_img], [box])
         else:
             bboxes_batch = []
             obj_imgs_batch = []
 
             for obj in objs:
                 box, obj_img = idtr.formaliza_data(obj, cv_img)
-                boxes_tensor = historical_boxes.copy()
-                boxes_tensor.pop(0)
-                boxes_tensor.append(box)
-                obj_imgs_tensor = historical_obj_imgs.copy()
-                obj_imgs_tensor.pop(0)
-                obj_imgs_tensor.append(obj_img)
-                bboxes_batch.append(boxes_tensor)
-                obj_imgs_batch.append(obj_imgs_tensor)
+                bboxes_batch.append(box)
+                obj_imgs_batch.append(obj_img)
 
-            predictions, argmax = idtr.predict(bboxes_batch, obj_imgs_batch)
-            predictions = predictions.numpy()
-            argmax = argmax.numpy()
-            if predictions[argmax] >= 0.7:
+            vectors = idtr.predict(obj_imgs_batch, bboxes_batch).numpy()
+            argmax = 0
+            distancemax = None
+            vectormax = None
+            for index, vector in enumerate(vectors):
+                v = vector - prev_vector
+                d = np.linalg.norm(v, 2)
+                if index == 0:
+                    distancemax = d
+                    vectormax = vector
+                    argmax = index
+                    continue
+                if d < distancemax:
+                    distancemax = d
+                    vectormax = vector
+                    argmax = index
+            print("Distance:", distancemax)
+            if distancemax < 4:
+                prev_vector = vectormax
                 obj = objs[argmax]
-                historical_boxes = bboxes_batch[argmax].copy()
-                historical_obj_imgs = obj_imgs_batch[argmax].copy()
                 image.draw_objs(pil_img, [obj])
-
-            print("==================")
-            print(predictions)
-            print(predictions[argmax])
 
         # Test human detection
         # image.draw_objs(pil_img, objs)
-        # Test historical frames
-        his_img = None
-        for _img in historical_obj_imgs:
-            if his_img is None:
-                his_img = _img
-            else:
-                his_img = np.concatenate((his_img, _img), axis=1)
-        cv.imshow('History', his_img)
-        cv.moveWindow('History', 90, 650)
 
         img = image.convert_pil_to_cv(pil_img)
         cv.imshow('Video', img)
         if cv.waitKey(10) & 0xFF == ord('q'):
             break
 
-        # Calculate Frames per second (FPS)
-        print("Total estimated Time: ",
+        # Calculate frames per second (FPS)
+        print("Total estimated time: ",
               (cv.getTickCount()-timer)/cv.getTickFrequency())
         fps = cv.getTickFrequency() / (cv.getTickCount() - timer)
         print("FPS: {:.1f}".format(fps))
