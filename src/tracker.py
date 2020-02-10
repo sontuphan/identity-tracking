@@ -3,11 +3,13 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import os
 import time
 import tensorflow as tf
-from tensorflow import keras
+from tensorflow import keras, lite
+import tflite_runtime.interpreter as tflite
 import numpy as np
 import cv2 as cv
 
 IMAGE_SHAPE = (96, 96)
+EDGETPU_SHARED_LIB = 'libedgetpu.so.1'
 MODELS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                       "../models/tpu/ohmnilabs_features_extractor_quant_postprocess.tflite")
 
@@ -21,7 +23,8 @@ class Extractor(keras.Model):
         self.ga = keras.layers.GlobalAveragePooling2D()
         self.fc = keras.layers.Dense(256, activation='sigmoid')
 
-    def call(self, imgs, bboxes):
+    def call(self, x):
+        [imgs, bboxes] = x
         conv_output = self.conv(imgs)
         ga_output = self.ga(conv_output)
         fc_output = self.fc(ga_output)
@@ -48,6 +51,12 @@ class Tracker:
                                               extractor=self.extractor)
         self.checkpoint.restore(
             tf.train.latest_checkpoint(self.checkpoint_dir))
+
+        self.interpreter = tflite.Interpreter(
+            model_path=MODELS,
+            experimental_delegates=[
+                tflite.load_delegate(EDGETPU_SHARED_LIB)
+            ])
 
     def loss_function(self, afs, pfs, nfs):
         # loss = ||afs-pfs||^2 - ||afs-nfs||^2 + a iff loss >= 0
@@ -76,9 +85,9 @@ class Tracker:
     @tf.function
     def train_step(self, anis, anbs, pis, pbs, nis, nbs):
         with tf.GradientTape() as tape:
-            afs = self.extractor(anis, anbs)
-            pfs = self.extractor(pis, pbs)
-            nfs = self.extractor(nis, nbs)
+            afs = self.extractor([anis, anbs])
+            pfs = self.extractor([pis, pbs])
+            nfs = self.extractor([nis, nbs])
             loss = self.loss_function(afs, pfs, nfs)
 
         variables = self.extractor.trainable_variables
@@ -126,10 +135,56 @@ class Tracker:
             # self.accuracy_metric.reset_states()
 
     def predict(self, imgs, bboxes):
-
         estart = time.time()
-        vectors = self.extractor(np.array(imgs), np.array(bboxes))
+        vectors = self.extractor([np.array(imgs), np.array(bboxes)])
+        eend = time.time()
+        print('Extractor estimated time {:.4f}'.format(eend-estart))
+        return vectors
+
+    def inference(self, imgs, bboxes):
+        estart = time.time()
+        re = None
+        input_details = self.interpreter.get_input_details()
+        output_details = self.interpreter.get_output_details()
+        for index, _ in enumerate(bboxes):
+            img = np.array([imgs[index]])
+            bbox = np.array([bboxes[index]])
+            self.interpreter.allocate_tensors()
+            self.interpreter.set_tensor(input_details[0]['index'], [img, bbox])
+            self.interpreter.invoke()
+            feature = self.interpreter.get_tensor(output_details[0]['index'])
+            if re is None:
+                re = feature
+            else:
+                re = np.append(re, feature, axis=0)
         eend = time.time()
         print('Extractor estimated time {:.4f}'.format(eend-estart))
 
-        return vectors
+        return re
+
+    def convert(self, pipeline):
+        model = self.extractor
+
+        # Define input shapes
+        pseudo_img = tf.keras.Input(shape=(96, 96, 3))
+        pseudo_bbox = tf.keras.Input(shape=(4))
+        model([pseudo_img, pseudo_bbox])
+        model.summary()
+
+        def representative_dataset_gen():
+            for tensor in pipeline.take(100):
+                img, bbox = tensor
+                ani, _, _ = tf.split(img, [1, 1, 1], axis=0)
+                anb, _, _ = tf.split(bbox, [1, 1, 1], axis=0)
+                yield [ani, anb]
+
+        converter = lite.TFLiteConverter.from_keras_model(model)
+        converter.optimizations = [lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset_gen
+        converter.target_spec.supported_ops = [
+            lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.uint8
+        converter.inference_output_type = tf.uint8
+        tflite_quant_model = converter.convert()
+
+        open(MODELS, 'wb').write(tflite_quant_model)

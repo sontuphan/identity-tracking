@@ -39,11 +39,18 @@ def train():
     idtr.train(dataset, 5)
 
 
+def convert():
+    idtr = Tracker()
+    generator = DataManufacture('MOT17-05', idtr.batch_size, idtr.image_shape)
+    pipeline = generator.input_pipeline()
+    idtr.convert(pipeline)
+
+
 def predict():
     idtr = Tracker()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO7)
+    cap = cv.VideoCapture(VIDEO0)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 

@@ -43,6 +43,8 @@ if __name__ == "__main__":
         elif sys.argv[2] == "tracker":
             if sys.argv[3] == "train":
                 tracker.train()
+            if sys.argv[3] == "convert":
+                tracker.convert()
             if sys.argv[3] == "predict":
                 tracker.predict()
 
