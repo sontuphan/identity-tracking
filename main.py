@@ -2,7 +2,7 @@ import sys
 
 import tensorflow as tf
 from tests import utils, datamanufacture, tracker
-from tests import extractor, humandetection, mobilenet
+from tests import extractor, humandetection
 from pycar import start as car
 
 tf.get_logger().setLevel('ERROR')
@@ -61,12 +61,6 @@ if __name__ == "__main__":
                 extractor.test_224()
             if sys.argv[3] == "test_inception":
                 extractor.test_inception()
-
-        elif sys.argv[2] == "mobilenet":
-            if sys.argv[3] == "convert":
-                mobilenet.convert()
-            if sys.argv[3] == "run":
-                mobilenet.run()
 
     elif sys.argv[1] == '--pycar':
         if sys.argv[2] == "test_camera":
