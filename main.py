@@ -46,7 +46,9 @@ if __name__ == "__main__":
             if sys.argv[3] == "convert":
                 tracker.convert()
             if sys.argv[3] == "predict":
-                tracker.predict()
+                tracker.predict(False)
+            if sys.argv[3] == "inference":
+                tracker.predict(True)
 
         elif sys.argv[2] == "visualization":
             if sys.argv[3] == "test_generator":
@@ -65,7 +67,6 @@ if __name__ == "__main__":
                 mobilenet.convert()
             if sys.argv[3] == "run":
                 mobilenet.run()
-
 
     elif sys.argv[1] == '--pycar':
         if sys.argv[2] == "test_camera":

@@ -5,13 +5,15 @@ import numpy as np
 
 from utils import image
 from src.humandetection import HumanDetection
-from src.tracker import Tracker
+from src.tracker import Tracker, Inference
 from src.datamanufacture import DataManufacture
 
 VIDEO0 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/chaplin.mp4")
 VIDEO5 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-05-SDP.mp4")
+VIDEO6 = os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), "../data/video/MOT17-06-SDP.mp4")
 VIDEO7 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-07-SDP.mp4")
 VIDEO9 = os.path.join(os.path.dirname(
@@ -19,7 +21,7 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 
 def train():
-    idtr = Tracker()
+    tracker = Tracker()
     names = ['MOT17-05']
     # names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
     # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
@@ -27,7 +29,8 @@ def train():
 
     pipeline = None
     for name in names:
-        generator = DataManufacture(name, idtr.batch_size, idtr.image_shape)
+        generator = DataManufacture(
+            name, tracker.batch_size, tracker.image_shape)
         next_pipeline = generator.input_pipeline()
         if pipeline is None:
             pipeline = next_pipeline
@@ -35,22 +38,25 @@ def train():
             pipeline = pipeline.concatenate(next_pipeline)
 
     dataset = pipeline.shuffle(256).batch(
-        idtr.batch_size, drop_remainder=True)
-    idtr.train(dataset, 5)
+        tracker.batch_size, drop_remainder=True)
+    tracker.train(dataset, 5)
 
 
 def convert():
-    idtr = Tracker()
-    generator = DataManufacture('MOT17-05', idtr.batch_size, idtr.image_shape)
+    tracker = Tracker()
+    generator = DataManufacture(
+        'MOT17-05', tracker.batch_size, tracker.image_shape)
     pipeline = generator.input_pipeline()
-    idtr.convert(pipeline)
+    tracker.convert(pipeline)
 
 
-def predict():
-    idtr = Tracker()
+def predict(tpu=False):
+    tracker = Tracker()
+    if tpu:
+        inference = Inference()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO0)
+    cap = cv.VideoCapture(VIDEO5)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
@@ -66,6 +72,8 @@ def predict():
 
         imgstart = time.time()
         cv_img = cv.resize(frame, (300, 300))
+        # cv_img = cv.cvtColor(cv_img, cv.COLOR_BGR2GRAY)
+        # cv_img = cv.cvtColor(cv_img, cv.COLOR_GRAY2BGR)
         pil_img = image.convert_cv_to_pil(cv_img)
         imgend = time.time()
         print('Image estimated time {:.4f}'.format(imgend-imgstart))
@@ -82,18 +90,24 @@ def predict():
             obj_id = 0
             if len(objs) <= obj_id:
                 continue
-            box, obj_img = idtr.formaliza_data(objs[obj_id], cv_img)
-            prev_vector = idtr.predict([obj_img], [box])
+            box, obj_img = tracker.formaliza_data(objs[obj_id], cv_img)
+            if not tpu:
+                prev_vector = tracker.predict([obj_img], [box])
+            else:
+                prev_vector = inference.predict([obj_img], [box])
         else:
             bboxes_batch = []
             obj_imgs_batch = []
 
             for obj in objs:
-                box, obj_img = idtr.formaliza_data(obj, cv_img)
+                box, obj_img = tracker.formaliza_data(obj, cv_img)
                 bboxes_batch.append(box)
                 obj_imgs_batch.append(obj_img)
 
-            vectors = idtr.predict(obj_imgs_batch, bboxes_batch).numpy()
+            if not tpu:
+                vectors = tracker.predict(obj_imgs_batch, bboxes_batch)
+            else:
+                vectors = inference.predict(obj_imgs_batch, bboxes_batch)
             argmax = 0
             distancemax = None
             vectormax = None
