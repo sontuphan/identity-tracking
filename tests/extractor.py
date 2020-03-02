@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from src.datamanufacture import DataManufacture
+from src.factory import Factory
 from utils import image
 
 
@@ -53,60 +53,15 @@ class ExtractorInception(tf.keras.Model):
         return self.model(x)
 
 
-def test_generator():
-    HISTORICAL_FRAMES = 8
-    dm = DataManufacture(img_shape=(96, 96))
-    dataset = dm.generator()
-    dataset = iter(dataset)
-
-    while True:
-        coordinates, imgs, label = next(dataset)
-        tensor = None
-        for img in imgs:
-            if tensor is None:
-                tensor = img
-            else:
-                tensor = np.concatenate((tensor, img), axis=1)
-        plt.imshow(tensor)
-        plt.text(0, 0, str(label))
-        for i in range(HISTORICAL_FRAMES):
-            plt.text(0, dm.img_shape[1]*(2+i/4), str(coordinates[i]))
-        plt.show()
-
-
-def test_pipeline():
-    dm = DataManufacture(img_shape=(96, 96))
-    pipeline = dm.input_pipeline()
-    pipeline = pipeline.shuffle(128)
-
-    for _ in range(5):
-        for data in pipeline.take(1):
-            coordinates, imgs, label = data
-            coordinates = coordinates.numpy()
-            imgs = imgs.numpy()
-            label = label.numpy()
-        tensor = None
-        for img in imgs:
-            if tensor is None:
-                tensor = img
-            else:
-                tensor = np.concatenate((tensor, img), axis=1)
-        plt.imshow(tensor)
-        plt.text(0, 0, str(label))
-        for i in range(8):
-            plt.text(0, dm.img_shape[1]*(2+i/4), str(coordinates[i]))
-        plt.show()
-
-
 def test_96():
     IMAGE_SHAPE = (96, 96)
-    dm = DataManufacture(img_shape=IMAGE_SHAPE)
-    dataset = dm.gen_frames()
+    fac = Factory(img_shape=IMAGE_SHAPE)
+    dataset = fac.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = dm.load_frame(obj[2])
-        obj = dm.convert_array_to_object(obj)
+        img = fac.load_frame(obj[2])
+        obj = fac.convert_array_to_object(obj)
         cropped_img = image.crop(img, obj)
         resized_img = image.resize(cropped_img, IMAGE_SHAPE)
         img_arr = image.convert_pil_to_cv(resized_img)
@@ -124,13 +79,13 @@ def test_96():
 
 def test_224():
     IMAGE_SHAPE = (224, 224)
-    dm = DataManufacture(img_shape=IMAGE_SHAPE)
-    dataset = dm.gen_frames()
+    fac = Factory(img_shape=IMAGE_SHAPE)
+    dataset = fac.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = dm.load_frame(obj[2])
-        obj = dm.convert_array_to_object(obj)
+        img = fac.load_frame(obj[2])
+        obj = fac.convert_array_to_object(obj)
         cropped_img = image.crop(img, obj)
         resized_img = image.resize(cropped_img, IMAGE_SHAPE)
         img_arr = image.convert_pil_to_cv(resized_img)
@@ -148,13 +103,13 @@ def test_224():
 
 def test_inception():
     IMAGE_SHAPE = (299, 299)
-    dm = DataManufacture(img_shape=IMAGE_SHAPE)
-    dataset = dm.gen_frames()
+    fac = Factory(img_shape=IMAGE_SHAPE)
+    dataset = fac.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = dm.load_frame(obj[2])
-        obj = dm.convert_array_to_object(obj)
+        img = fac.load_frame(obj[2])
+        obj = fac.convert_array_to_object(obj)
         cropped_img = image.crop(img, obj)
         resized_img = image.resize(cropped_img, IMAGE_SHAPE)
         img_arr = image.convert_pil_to_cv(resized_img)

@@ -6,13 +6,12 @@ import cv2 as cv
 import numpy as np
 import tensorflow as tf
 
-from utils import image
 from utils.bbox import BBox, Object
 
 FRAME_SHAPE = (300, 300)
 
 
-class DataManufacture():
+class Factory():
     def __init__(self, data_name='MOT17-05', batch_size=64,
                  img_shape=(96, 96)):
         self.data_dir = 'data/MOT17Det/train/'
@@ -27,50 +26,39 @@ class DataManufacture():
 
     def input_pipeline(self):
         pipeline = tf.data.Dataset.from_generator(
-            self.generator, args=[False],
+            self.generator, args=[],
             output_types=(tf.float32, tf.float32),
             output_shapes=(((3,)+self.img_shape+(3,)), (3, 4)), )
         return pipeline
 
-    def generator(self, verbose=False):
+    def generator(self):
         frames = self.gen_frames()
         triplets = self.gen_triplets(frames)
 
-        avg_time_iter = 0
-        for index, triplet in enumerate(triplets):
-            if verbose:
-                start_iter = time.time()
+        for triplet in triplets:
+            imgs, bboxes = self.normalize_data(triplet)
+            yield imgs, bboxes
 
-            imgs = self.get_data_by_img(triplet)
-            coordinates = list(
-                map(lambda obj: [obj[-4]/FRAME_SHAPE[0],
-                                 obj[-3]/FRAME_SHAPE[1],
-                                 obj[-2]/FRAME_SHAPE[0],
-                                 obj[-1]/FRAME_SHAPE[1]], triplet))
-
-            if verbose:
-                end_iter = time.time()
-                avg_time_iter += end_iter-start_iter
-                if (index+1) % 100 == 0:
-                    print('Estimated time for a iteration (over {} iterations): {:.4f} sec'.format(
-                        index+1, avg_time_iter/(index+1)))
-
-            yield imgs, coordinates
-
-    def get_data_by_img(self, objs):
+    def normalize_data(self, objs):
         img_tensor = []
+        bbox_tensor = []
         for obj in objs:
-            img = self.process_image(obj)
-            img_tensor.append(img)
-        return img_tensor
+            frame = self.load_frame(obj[2])
+            obj = self.convert_array_to_object(obj)
+            (xmin, ymin, xmax, ymax) = obj.bbox
 
-    def process_image(self, obj):
-        img = self.load_frame(obj[2])
-        obj = self.convert_array_to_object(obj)
-        cropped_img = image.crop(img, obj)
-        resized_img = image.resize(cropped_img, self.img_shape)
-        img_arr = image.convert_pil_to_cv(resized_img)
-        return img_arr/255.0
+            cropped_img = frame[ymin:ymax, xmin:xmax]
+            resized_img = cv.resize(cropped_img, self.img_shape)
+            img = resized_img/255.0
+            img_tensor.append(img)
+
+            bbox = [xmin/FRAME_SHAPE[0],
+                    ymin/FRAME_SHAPE[1],
+                    xmax/FRAME_SHAPE[0],
+                    ymax/FRAME_SHAPE[1]]
+            bbox_tensor.append(bbox)
+
+        return img_tensor, bbox_tensor
 
     def load_frame(self, img_id):
         name = str(img_id)
@@ -81,9 +69,7 @@ class DataManufacture():
         data_dir = os.path.abspath(data_dir)
         frame = cv.imread(data_dir)
         if frame is not None:
-            img = image.convert_cv_to_pil(frame)
-            img = image.resize(img, FRAME_SHAPE)
-            return img
+            return cv.resize(frame, FRAME_SHAPE)
         else:
             return None
 
@@ -110,14 +96,14 @@ class DataManufacture():
                 data.append([obj, pos, neg])
         return data
 
-    def get_obj_by_id(self, id, objs, negative):
+    def get_obj_by_id(self, obj_id, objs, negative):
         if negative and len(objs) >= 2:
             obj = random.choice(objs)
-            while obj[0] == id:
+            while obj[0] == obj_id:
                 obj = random.choice(objs)
             return obj
         for obj in objs:
-            if obj[0] == id:
+            if obj[0] == obj_id:
                 return obj
         return None
 

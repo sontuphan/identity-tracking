@@ -6,7 +6,7 @@ import numpy as np
 from utils import image
 from src.humandetection import HumanDetection
 from src.tracker import Tracker, Inference
-from src.datamanufacture import DataManufacture
+from src.factory import Factory
 
 VIDEO0 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/chaplin.mp4")
@@ -29,7 +29,7 @@ def train():
 
     pipeline = None
     for name in names:
-        generator = DataManufacture(
+        generator = Factory(
             name, tracker.batch_size, tracker.image_shape)
         next_pipeline = generator.input_pipeline()
         if pipeline is None:
@@ -44,7 +44,7 @@ def train():
 
 def convert():
     tracker = Tracker()
-    generator = DataManufacture(
+    generator = Factory(
         'MOT17-05', tracker.batch_size, tracker.image_shape)
     pipeline = generator.input_pipeline()
     tracker.convert(pipeline)
@@ -56,7 +56,7 @@ def predict(tpu=False):
         inference = Inference()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO5)
+    cap = cv.VideoCapture(VIDEO0)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 

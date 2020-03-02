@@ -1,7 +1,7 @@
 import sys
 
 import tensorflow as tf
-from tests import utils, datamanufacture, tracker
+from tests import utils, factory, tracker
 from tests import extractor, humandetection
 from pycar import start as car
 
@@ -30,15 +30,17 @@ if __name__ == "__main__":
             if sys.argv[3] == "test_with_video_4":
                 humandetection.test_with_video(4)
 
-        elif sys.argv[2] == "datamanufacture":
-            if sys.argv[3] == "generate_small_data":
-                datamanufacture.generate_small_data()
+        elif sys.argv[2] == "factory":
             if sys.argv[3] == "generate_data":
-                datamanufacture.generate_data()
+                factory.generate_data()
             if sys.argv[3] == "review_source":
-                datamanufacture.review_source()
+                factory.review_source()
             if sys.argv[3] == "gen_triplets":
-                datamanufacture.gen_triplets()
+                factory.gen_triplets()
+            if sys.argv[3] == "test_generator":
+                factory.test_generator()
+            if sys.argv[3] == "test_pipeline":
+                factory.test_pipeline()
 
         elif sys.argv[2] == "tracker":
             if sys.argv[3] == "train":
@@ -51,10 +53,6 @@ if __name__ == "__main__":
                 tracker.predict(True)
 
         elif sys.argv[2] == "visualization":
-            if sys.argv[3] == "test_generator":
-                extractor.test_generator()
-            if sys.argv[3] == "test_pipeline":
-                extractor.test_pipeline()
             if sys.argv[3] == "test_96":
                 extractor.test_96()
             if sys.argv[3] == "test_224":
