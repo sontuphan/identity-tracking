@@ -12,8 +12,6 @@ VIDEO0 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/chaplin.mp4")
 VIDEO5 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-05-SDP.mp4")
-VIDEO6 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/MOT17-06-SDP.mp4")
 VIDEO7 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-07-SDP.mp4")
 VIDEO9 = os.path.join(os.path.dirname(
@@ -22,8 +20,8 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 def train():
     tracker = Tracker()
-    names = ['MOT17-05']
-    # names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
+    # names = ['MOT17-05']
+    names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
     # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
     #          'MOT17-09', 'MOT17-10', 'MOT17-11']
 
@@ -39,7 +37,7 @@ def train():
 
     dataset = pipeline.shuffle(256).batch(
         tracker.batch_size, drop_remainder=True)
-    tracker.train(dataset, 5)
+    tracker.train(dataset, 10)
 
 
 def convert():
@@ -56,7 +54,7 @@ def predict(tpu=False):
         inference = Inference()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO0)
+    cap = cv.VideoCapture(VIDEO9)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
@@ -87,7 +85,7 @@ def predict(tpu=False):
             continue
 
         if prev_vector is None:
-            obj_id = 0
+            obj_id = 1
             if len(objs) <= obj_id:
                 continue
             box, obj_img = tracker.formaliza_data(objs[obj_id], cv_img)

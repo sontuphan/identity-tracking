@@ -17,6 +17,7 @@ class Factory():
         self.data_name = data_name
         self.batch_size = batch_size
         self.img_shape = img_shape
+        self.frame_shape = FRAME_SHAPE
 
         config = configparser.ConfigParser()
         config.read(self.data_dir + self.data_name + '/seqinfo.ini')
@@ -36,6 +37,11 @@ class Factory():
 
         for triplet in triplets:
             imgs, bboxes = self.normalize_data(triplet)
+            # Filter too small image
+            bbox = bboxes[0]
+            area = (bbox[2]-bbox[0])*(bbox[3]-bbox[1])
+            if area < 0.003:
+                continue
             yield imgs, bboxes
 
     def normalize_data(self, objs):
@@ -51,10 +57,10 @@ class Factory():
             img = resized_img/255.0
             img_tensor.append(img)
 
-            bbox = [xmin/FRAME_SHAPE[0],
-                    ymin/FRAME_SHAPE[1],
-                    xmax/FRAME_SHAPE[0],
-                    ymax/FRAME_SHAPE[1]]
+            bbox = [xmin/self.frame_shape[0],
+                    ymin/self.frame_shape[1],
+                    xmax/self.frame_shape[0],
+                    ymax/self.frame_shape[1]]
             bbox_tensor.append(bbox)
 
         return img_tensor, bbox_tensor
@@ -68,7 +74,7 @@ class Factory():
         data_dir = os.path.abspath(data_dir)
         frame = cv.imread(data_dir)
         if frame is not None:
-            return cv.resize(frame, FRAME_SHAPE)
+            return cv.resize(frame, self.frame_shape)
         else:
             return None
 
@@ -116,8 +122,8 @@ class Factory():
         )
         objs = filter(lambda line: line[6] == 1 and line[8] >= 0.2, dataset)
 
-        width_scale = self.metadata[0]/FRAME_SHAPE[0]
-        height_scale = self.metadata[1]/FRAME_SHAPE[1]
+        width_scale = self.metadata[0]/self.frame_shape[0]
+        height_scale = self.metadata[1]/self.frame_shape[1]
         objs = map(lambda line: [
             int(line[1]),  # id
             int(line[1]),  # label
@@ -126,9 +132,9 @@ class Factory():
             int((line[2] if line[2] > 0 else 0)/width_scale),  # xmin
             int((line[3] if line[3] > 0 else 0)/height_scale),  # ymin
             int((line[2]+line[4])/width_scale if (line[2]+line[4]) / \
-                width_scale < FRAME_SHAPE[0] else FRAME_SHAPE[0]-1),  # xmax
+                width_scale < self.frame_shape[0] else self.frame_shape[0]-1),  # xmax
             int((line[3]+line[5])/height_scale if (line[3]+line[5]) / \
-                height_scale < FRAME_SHAPE[1] else FRAME_SHAPE[1]-1)  # ymax
+                height_scale < self.frame_shape[1] else self.frame_shape[1]-1)  # ymax
         ], objs)
 
         objs = list(objs)

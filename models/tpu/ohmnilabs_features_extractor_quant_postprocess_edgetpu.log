@@ -4,6 +4,8 @@ Output: ohmnilabs_features_extractor_quant_postprocess_edgetpu.tflite
 
 Operator                       Count      Status
 
+LOGISTIC                       1          Mapped to Edge TPU
+ADD                            10         Mapped to Edge TPU
 QUANTIZE                       1          Operation is otherwise supported, but not mapped due to some unspecified limitation
 PAD                            5          Mapped to Edge TPU
 CONV_2D                        35         Mapped to Edge TPU
@@ -11,5 +13,3 @@ DEPTHWISE_CONV_2D              17         Mapped to Edge TPU
 DEQUANTIZE                     1          Operation is working on an unsupported data type
 MEAN                           1          Mapped to Edge TPU
 FULLY_CONNECTED                1          Mapped to Edge TPU
-LOGISTIC                       1          Mapped to Edge TPU
-ADD                            10         Mapped to Edge TPU

@@ -31,7 +31,6 @@ def gen_triplets():
 
     for triplet in triplets:
         imgs = None
-        anchor_bbox = None
         for obj in triplet:
             frame = fac.load_frame(obj[2])
             obj = fac.convert_array_to_object(obj)
@@ -45,19 +44,6 @@ def gen_triplets():
             else:
                 imgs = np.concatenate((imgs, img), axis=1)
 
-            if anchor_bbox is None:
-                anchor_bbox = [xmin/FRAME_SHAPE[0],
-                               ymin/FRAME_SHAPE[1],
-                               xmax/FRAME_SHAPE[0],
-                               ymax/FRAME_SHAPE[1]]
-
-        lx = anchor_bbox[2]-anchor_bbox[0]
-        ly = anchor_bbox[3]-anchor_bbox[1]
-        area = lx*ly
-        if area < 0.003:
-            continue
-
-        print(area)
         cv.imshow('Triplet', imgs)
         if cv.waitKey(500) & 0xFF == ord('q'):
             break
@@ -103,8 +89,18 @@ def test_generator():
 
 
 def test_pipeline():
-    fac = Factory()
-    pipeline = fac.input_pipeline()
+    names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
+             'MOT17-09', 'MOT17-10', 'MOT17-11']
+    pipeline = None
+    for name in names:
+        generator = Factory(
+            name, batch_size=64, img_shape=(96, 96))
+        next_pipeline = generator.input_pipeline()
+        if pipeline is None:
+            pipeline = next_pipeline
+        else:
+            pipeline = pipeline.concatenate(next_pipeline)
+
     pipeline = pipeline.shuffle(128)
 
     for _ in range(5):
