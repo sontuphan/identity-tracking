@@ -1,4 +1,3 @@
-import cv2 as cv
 import os
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -6,7 +5,7 @@ from PIL import Image
 from utils import image
 
 IMAGE = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/MOT17Det/train/MOT17-05/img1/000001.jpg")
+    os.path.abspath(__file__)), "../data/train/MOT17-05/img1/000001.jpg")
 
 
 def review_image():

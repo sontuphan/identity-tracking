@@ -4,6 +4,8 @@ import numpy as np
 from utils import image
 from src.factory import Factory
 
+FRAME_SHAPE = (300, 300)
+
 
 def generate_data():
     batch_size = 32
@@ -20,16 +22,21 @@ def generate_data():
 
 
 def gen_triplets():
-    fac = Factory("MOT17-05", 32)
+    # ['MOT17-02', 'MOT17-04', 'MOT17-05', 'MOT17-09',
+    #     'MOT17-10', 'MOT17-11']
+    data = 'MOT17-11'
+    fac = Factory(data, 32)
     frames = fac.gen_frames()
     triplets = fac.gen_triplets(frames)
 
     for triplet in triplets:
         imgs = None
+        anchor_bbox = None
         for obj in triplet:
             frame = fac.load_frame(obj[2])
             obj = fac.convert_array_to_object(obj)
             (xmin, ymin, xmax, ymax) = obj.bbox
+
             cropped_img = frame[ymin:ymax, xmin:xmax]
             resized_img = cv.resize(cropped_img, fac.img_shape)
             img = resized_img/255.0
@@ -37,6 +44,20 @@ def gen_triplets():
                 imgs = img
             else:
                 imgs = np.concatenate((imgs, img), axis=1)
+
+            if anchor_bbox is None:
+                anchor_bbox = [xmin/FRAME_SHAPE[0],
+                               ymin/FRAME_SHAPE[1],
+                               xmax/FRAME_SHAPE[0],
+                               ymax/FRAME_SHAPE[1]]
+
+        lx = anchor_bbox[2]-anchor_bbox[0]
+        ly = anchor_bbox[3]-anchor_bbox[1]
+        area = lx*ly
+        if area < 0.003:
+            continue
+
+        print(area)
         cv.imshow('Triplet', imgs)
         if cv.waitKey(500) & 0xFF == ord('q'):
             break

@@ -1,5 +1,4 @@
 import os
-import time
 import random
 import configparser
 import cv2 as cv
@@ -14,7 +13,7 @@ FRAME_SHAPE = (300, 300)
 class Factory():
     def __init__(self, data_name='MOT17-05', batch_size=64,
                  img_shape=(96, 96)):
-        self.data_dir = 'data/MOT17Det/train/'
+        self.data_dir = 'data/train/'
         self.data_name = data_name
         self.batch_size = batch_size
         self.img_shape = img_shape
