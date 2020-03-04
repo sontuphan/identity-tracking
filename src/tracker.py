@@ -52,12 +52,11 @@ class Tracker:
             tf.train.latest_checkpoint(self.checkpoint_dir))
 
     def loss_function(self, afs, pfs, nfs):
-        # loss = ||afs-pfs||^2 - ||afs-nfs||^2 + a iff loss >= 0
-        # loss = 0 iff loss < 0
+        # loss = (||afs-pfs||^2 + 1) / (||afs-nfs||^2 + 1)
         lloss = tf.linalg.normalize(afs - pfs, ord='euclidean', axis=1)
         rloss = tf.linalg.normalize(afs - nfs, ord='euclidean', axis=1)
-        alpha = tf.fill([self.batch_size, 1], tf.constant(1, dtype=tf.float32))
-        loss = lloss[1] - rloss[1] + alpha
+        one = tf.fill([self.batch_size, 1], tf.constant(1, dtype=tf.float32))
+        loss = tf.divide(lloss[1] + one, rloss[1] + one)
         return tf.exp(loss)
 
     def formaliza_data(self, obj, frame):
