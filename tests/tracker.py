@@ -37,7 +37,7 @@ def train():
 
     dataset = pipeline.shuffle(256).batch(
         tracker.batch_size, drop_remainder=True)
-    tracker.train(dataset, 10)
+    tracker.train(dataset, 5)
 
 
 def convert():

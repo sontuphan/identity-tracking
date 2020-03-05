@@ -52,13 +52,15 @@ if __name__ == "__main__":
             if sys.argv[3] == "inference":
                 tracker.predict(True)
 
-        elif sys.argv[2] == "visualization":
+        elif sys.argv[2] == "extractor":
             if sys.argv[3] == "test_96":
                 extractor.test_96()
             if sys.argv[3] == "test_224":
                 extractor.test_224()
             if sys.argv[3] == "test_inception":
                 extractor.test_inception()
+            if sys.argv[3] == "test_mobilenet":
+                extractor.test_mobilenet()
 
     elif sys.argv[1] == '--pycar':
         if sys.argv[2] == "test_camera":

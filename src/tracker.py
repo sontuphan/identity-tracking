@@ -24,13 +24,13 @@ class Extractor(keras.Model):
         self.conv = keras.applications.MobileNetV2(
             input_shape=(96, 96, 3), include_top=False, weights='imagenet')
         self.conv.trainable = False
-        self.ga = keras.layers.GlobalAveragePooling2D()
+        self.pool = keras.layers.GlobalMaxPool2D()
         self.fc = keras.layers.Dense(256, activation='sigmoid')
 
     def call(self, imgs):
         conv_output = self.conv(imgs)
-        ga_output = self.ga(conv_output)
-        fc_output = self.fc(ga_output)
+        pool_output = self.pool(conv_output)
+        fc_output = self.fc(pool_output)
         return fc_output
 
 
@@ -56,8 +56,8 @@ class Tracker:
         lloss = tf.linalg.normalize(afs - pfs, ord='euclidean', axis=1)
         rloss = tf.linalg.normalize(afs - nfs, ord='euclidean', axis=1)
         one = tf.fill([self.batch_size, 1], tf.constant(1, dtype=tf.float32))
-        loss = tf.divide(lloss[1] + one, rloss[1] + one)
-        return tf.exp(loss)
+        loss = (lloss[1] + one)/(rloss[1] + one)
+        return loss
 
     def formaliza_data(self, obj, frame):
         xmin = 0 if obj.bbox.xmin < 0 else obj.bbox.xmin

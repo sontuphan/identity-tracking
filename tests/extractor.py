@@ -53,6 +53,26 @@ class ExtractorInception(tf.keras.Model):
         return self.model(x)
 
 
+class ExtractorMobilenet(tf.keras.Model):
+    def __init__(self):
+        super(ExtractorMobilenet, self).__init__()
+        self.conv = tf.keras.applications.MobileNetV2(
+            input_shape=(96, 96, 3), include_top=False, weights='imagenet')
+        self.conv.trainable = False
+        self.pool = tf.keras.layers.GlobalMaxPool2D()
+        self.fc = tf.keras.layers.Dense(256, activation='relu')
+
+    def call(self, imgs):
+        print('IMGS:', imgs.shape)
+        conv_output = self.conv(imgs)
+        print('CONV:', conv_output.shape)
+        pool_output = self.pool(conv_output)
+        print('POOL:', pool_output.shape)
+        fc_output = self.fc(pool_output)
+        print('FC:', fc_output.shape)
+        return fc_output
+
+
 def test_96():
     IMAGE_SHAPE = (96, 96)
     fac = Factory(img_shape=IMAGE_SHAPE)
@@ -124,3 +144,38 @@ def test_inception():
     data = data.transpose()
     plt.plot(data)
     plt.show()
+
+
+def test_mobilenet():
+    fac = Factory()
+    generator = iter(fac.generator())
+
+    extractor = ExtractorMobilenet()
+
+    while True:
+        imgs, bboxes = next(generator)
+        imgs, bboxes = np.array(imgs), np.array(bboxes)
+        (anchor, positive, negative) = tf.concat([extractor(imgs), bboxes], 1)
+        print('Anchor:', anchor.shape)
+        print('Positive:', positive.shape)
+        print('Negative:', negative.shape)
+
+        lloss = tf.linalg.normalize(anchor - positive, ord='euclidean', axis=0)
+        print(lloss[1])
+        rloss = tf.linalg.normalize(anchor - negative, ord='euclidean', axis=0)
+        print(rloss[1])
+        one = tf.constant(1, dtype=tf.float32)
+        loss = tf.divide(lloss[1] + one, rloss[1] + one)
+        print(loss)
+
+        # Vizualization
+        tensor = None
+        for img in imgs:
+            if tensor is None:
+                tensor = img
+            else:
+                tensor = np.concatenate((tensor, img), axis=1)
+        plt.imshow(tensor)
+        plt.show()
+
+        print("================================")
