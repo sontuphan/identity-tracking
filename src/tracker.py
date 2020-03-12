@@ -25,7 +25,7 @@ class Extractor(keras.Model):
             input_shape=(96, 96, 3), include_top=False, weights='imagenet')
         self.conv.trainable = False
         self.pool = keras.layers.GlobalMaxPool2D()
-        self.fc = keras.layers.Dense(256, activation='sigmoid')
+        self.fc = keras.layers.Dense(1024, activation='sigmoid')
 
     def call(self, imgs):
         conv_output = self.conv(imgs)
@@ -51,12 +51,11 @@ class Tracker:
         self.checkpoint.restore(
             tf.train.latest_checkpoint(self.checkpoint_dir))
 
+    @tf.function
     def loss_function(self, afs, pfs, nfs):
-        # loss = (||afs-pfs||^2 + 1) / (||afs-nfs||^2 + 1)
-        lloss = tf.linalg.normalize(afs - pfs, ord='euclidean', axis=1)
-        rloss = tf.linalg.normalize(afs - nfs, ord='euclidean', axis=1)
-        one = tf.fill([self.batch_size, 1], tf.constant(1, dtype=tf.float32))
-        loss = (lloss[1] + one)/(rloss[1] + one)
+        lloss = tf.sqrt(tf.reduce_sum(tf.square(afs - pfs), 1))
+        rloss = tf.sqrt(tf.reduce_sum(tf.square(afs - nfs), 1))
+        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 15, 0))
         return loss
 
     def formaliza_data(self, obj, frame):
@@ -100,6 +99,7 @@ class Tracker:
             try:
                 while True:
                     imgs, bboxes = next(iterator)
+
                     anis, pis, nis = tf.split(imgs, [1, 1, 1], axis=1)
                     anis = tf.reshape(
                         anis, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
@@ -111,8 +111,10 @@ class Tracker:
                     anbs = tf.reshape(anbs, [self.batch_size, 4])
                     pbs = tf.reshape(pbs, [self.batch_size, 4])
                     nbs = tf.reshape(nbs, [self.batch_size, 4])
-                    steps_per_epoch += 1
                     self.train_step(anis, anbs, pis, pbs, nis, nbs)
+
+                    steps_per_epoch += 1
+
             except StopIteration:
                 pass
 

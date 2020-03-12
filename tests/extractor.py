@@ -75,13 +75,13 @@ class ExtractorMobilenet(tf.keras.Model):
 
 def test_96():
     IMAGE_SHAPE = (96, 96)
-    fac = Factory(img_shape=IMAGE_SHAPE)
-    dataset = fac.gen_frames()
+    factory = Factory(img_shape=IMAGE_SHAPE)
+    dataset = factory.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = fac.load_frame(obj[2])
-        obj = fac.convert_array_to_object(obj)
+        img = factory.load_frame(obj[2])
+        obj = factory.convert_array_to_object(obj)
         cropped_img = image.crop(img, obj)
         resized_img = image.resize(cropped_img, IMAGE_SHAPE)
         img_arr = image.convert_pil_to_cv(resized_img)
@@ -99,13 +99,13 @@ def test_96():
 
 def test_224():
     IMAGE_SHAPE = (224, 224)
-    fac = Factory(img_shape=IMAGE_SHAPE)
-    dataset = fac.gen_frames()
+    factory = Factory(img_shape=IMAGE_SHAPE)
+    dataset = factory.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = fac.load_frame(obj[2])
-        obj = fac.convert_array_to_object(obj)
+        img = factory.load_frame(obj[2])
+        obj = factory.convert_array_to_object(obj)
         cropped_img = image.crop(img, obj)
         resized_img = image.resize(cropped_img, IMAGE_SHAPE)
         img_arr = image.convert_pil_to_cv(resized_img)
@@ -123,13 +123,13 @@ def test_224():
 
 def test_inception():
     IMAGE_SHAPE = (299, 299)
-    fac = Factory(img_shape=IMAGE_SHAPE)
-    dataset = fac.gen_frames()
+    factory = Factory(img_shape=IMAGE_SHAPE)
+    dataset = factory.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = fac.load_frame(obj[2])
-        obj = fac.convert_array_to_object(obj)
+        img = factory.load_frame(obj[2])
+        obj = factory.convert_array_to_object(obj)
         cropped_img = image.crop(img, obj)
         resized_img = image.resize(cropped_img, IMAGE_SHAPE)
         img_arr = image.convert_pil_to_cv(resized_img)
@@ -147,10 +147,9 @@ def test_inception():
 
 
 def test_mobilenet():
-    fac = Factory()
-    generator = iter(fac.generator())
-
     extractor = ExtractorMobilenet()
+    factory = Factory()
+    generator = iter(factory.generator())
 
     while True:
         imgs, bboxes = next(generator)
@@ -160,13 +159,15 @@ def test_mobilenet():
         print('Positive:', positive.shape)
         print('Negative:', negative.shape)
 
-        lloss = tf.linalg.normalize(anchor - positive, ord='euclidean', axis=0)
-        print(lloss[1])
-        rloss = tf.linalg.normalize(anchor - negative, ord='euclidean', axis=0)
-        print(rloss[1])
+        # lloss = tf.linalg.normalize(anchor - positive, ord='euclidean', axis=0)
+        lloss = tf.sqrt(tf.reduce_sum(tf.square(anchor - positive)))
+        print('d(a,p):', lloss)
+        # rloss = tf.linalg.normalize(anchor - negative, ord='euclidean', axis=0)
+        rloss = tf.sqrt(tf.reduce_sum(tf.square(anchor - negative)))
+        print('d(a,n):', rloss)
         one = tf.constant(1, dtype=tf.float32)
-        loss = tf.divide(lloss[1] + one, rloss[1] + one)
-        print(loss)
+        proportion = (lloss + one)/(rloss + one)
+        print('The proportion:', proportion)
 
         # Vizualization
         tensor = None

@@ -20,10 +20,10 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 def train():
     tracker = Tracker()
-    names = ['MOT17-05']
+    # names = ['MOT17-05']
     # names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
-    # names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
-    #          'MOT17-09', 'MOT17-10', 'MOT17-11']
+    names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
+             'MOT17-09', 'MOT17-10', 'MOT17-11']
 
     pipeline = None
     for name in names:
@@ -54,7 +54,7 @@ def predict(tpu=False):
         inference = Inference()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO9)
+    cap = cv.VideoCapture(VIDEO5)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
@@ -109,9 +109,11 @@ def predict(tpu=False):
             argmax = 0
             distancemax = None
             vectormax = None
+            distances = []
             for index, vector in enumerate(vectors):
                 v = vector - prev_vector
                 d = np.linalg.norm(v, 2)
+                distances.append(d)
                 if index == 0:
                     distancemax = d
                     vectormax = vector
@@ -121,7 +123,8 @@ def predict(tpu=False):
                     distancemax = d
                     vectormax = vector
                     argmax = index
-            print("Distance:", distancemax)
+            print("Distances:", distances)
+            print("Min distance:", distancemax)
             if distancemax < 4:
                 prev_vector = vectormax
                 obj = objs[argmax]
