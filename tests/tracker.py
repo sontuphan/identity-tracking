@@ -2,6 +2,7 @@ import os
 import time
 import cv2 as cv
 import numpy as np
+from random import randint
 
 from utils import image
 from src.humandetection import HumanDetection
@@ -16,7 +17,6 @@ VIDEO7 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-07-SDP.mp4")
 VIDEO9 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-09-FRCNN.mp4")
-
 
 def train():
     tracker = Tracker()
@@ -59,19 +59,31 @@ def predict(tpu=False):
         print("Error opening video stream or file")
 
     prev_vector = None
+    video_len = cap.get(cv.CAP_PROP_FRAME_COUNT)
+    skipped_frame = randint(0, video_len)
+    print("Video length:", video_len)
+    print("Rand skipped frame:", skipped_frame)
+    time.sleep(5)
 
     while(cap.isOpened()):
-        print("======================================")
         timer = cv.getTickCount()
         ret, frame = cap.read()
 
         if ret != True:
             break
+        if skipped_frame > 0:
+            skipped_frame -= 1
+            continue
+
+        print("======================================")
 
         imgstart = time.time()
         cv_img = cv.resize(frame, (300, 300))
+
+        # Gray scale situtation
         # cv_img = cv.cvtColor(cv_img, cv.COLOR_BGR2GRAY)
         # cv_img = cv.cvtColor(cv_img, cv.COLOR_GRAY2BGR)
+
         pil_img = image.convert_cv_to_pil(cv_img)
         imgend = time.time()
         print('Image estimated time {:.4f}'.format(imgend-imgstart))
@@ -125,7 +137,7 @@ def predict(tpu=False):
                     argmax = index
             print("Distances:", distances)
             print("Min distance:", distancemax)
-            if distancemax < 4:
+            if distancemax < 10:
                 prev_vector = vectormax
                 obj = objs[argmax]
                 image.draw_objs(pil_img, [obj])
