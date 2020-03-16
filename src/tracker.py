@@ -24,7 +24,7 @@ class Extractor(keras.Model):
         self.conv = keras.applications.MobileNetV2(
             input_shape=(96, 96, 3), include_top=False, weights='imagenet')
         self.conv.trainable = False
-        self.pool = keras.layers.GlobalMaxPool2D()
+        self.pool = keras.layers.GlobalAveragePooling2D()
         self.fc = keras.layers.Dense(1024, activation='sigmoid')
 
     def call(self, imgs):
@@ -55,7 +55,7 @@ class Tracker:
     def loss_function(self, afs, pfs, nfs):
         lloss = tf.sqrt(tf.reduce_sum(tf.square(afs - pfs), 1))
         rloss = tf.sqrt(tf.reduce_sum(tf.square(afs - nfs), 1))
-        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 15, 0))
+        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 12, 0))
         return loss
 
     def formaliza_data(self, obj, frame):
@@ -172,13 +172,17 @@ class Inference:
             experimental_delegates=[
                 tflite.load_delegate(EDGETPU_SHARED_LIB)
             ])
+        self.input_details = self.interpreter.get_input_details()
+        self.output_details = self.interpreter.get_output_details()
+        self.threshold = 9
+        self.prev_feature = None
 
     def formaliza_data(self, obj, frame):
         xmin = 0 if obj.bbox.xmin < 0 else obj.bbox.xmin
         xmax = 300 if obj.bbox.xmax > 300 else obj.bbox.xmax
         ymin = 0 if obj.bbox.ymin < 0 else obj.bbox.ymin
         ymax = 300 if obj.bbox.ymax > 300 else obj.bbox.ymax
-        box = [xmin/300, ymin/300, xmax/300, ymax/300]
+        box = np.array([xmin/300, ymin/300, xmax/300, ymax/300])
         if xmin == xmax:
             return np.zeros(self.image_shape)
         if ymin == ymax:
@@ -188,26 +192,51 @@ class Inference:
         obj_img = resized_obj_img/255.0
         return box, obj_img
 
-    def predict(self, imgs, bboxes):
-        estart = time.time()
-        features = None
-        input_details = self.interpreter.get_input_details()
-        output_details = self.interpreter.get_output_details()
+    def test_variance(self, distances):
+        mean = np.mean(distances)
+        print(mean)
 
-        for img in imgs:
-            img = np.array(img, dtype=np.float32)
-            self.interpreter.allocate_tensors()
-            self.interpreter.set_tensor(input_details[0]['index'], [img])
-            self.interpreter.invoke()
-            feature = self.interpreter.get_tensor(output_details[0]['index'])
-            if features is None:
-                features = feature
-            else:
-                features = np.append(features, feature, axis=0)
+    def confidence_level(self, distances):
+        self.test_variance(distances)
+        deltas = (self.threshold - distances)/self.threshold
+        zeros = np.zeros(deltas.shape, dtype=np.float32)
+        logits = np.maximum(deltas, zeros)
+        logits_sum = np.sum(logits)
+        if logits_sum == 0:
+            return zeros
+        else:
+            confidences = logits/logits_sum
+            return confidences
 
-        bboxes = np.array(bboxes, dtype=np.float32)
-        output = np.concatenate((features, bboxes), axis=1)
-        eend = time.time()
-        print('Extractor estimated time {:.4f}'.format(eend-estart))
+    def infer(self, img):
+        img = np.array(img, dtype=np.float32)
+        self.interpreter.allocate_tensors()
+        self.interpreter.set_tensor(self.input_details[0]['index'], [img])
+        self.interpreter.invoke()
+        feature = self.interpreter.get_tensor(self.output_details[0]['index'])
+        return np.array(feature[0])
 
-        return output
+    def predict(self, imgs, bboxes, init=False):
+        bboxes = np.array(bboxes)*100
+        if init:
+            if len(imgs) != 1 or len(bboxes) != 1:
+                raise ValueError('You must initialize one object only.')
+            encoding = self.infer(imgs[0])
+            self.prev_feature = np.concatenate((encoding, bboxes[0]))
+            return 0, .0
+        else:
+            estart = time.time()
+            distances = np.array([])
+
+            for index, img in enumerate(imgs):
+                bbox = bboxes[index]
+                encoding = self.infer(img)
+                feature = np.concatenate((encoding, bbox))
+                distance = np.linalg.norm(self.prev_feature - feature)
+                distances = np.append(distances, distance)
+
+            confidences = self.confidence_level(distances)
+            eend = time.time()
+            print('Distances:', distances)
+            print('Extractor estimated time {:.4f}'.format(eend-estart))
+            return confidences

@@ -18,6 +18,7 @@ VIDEO7 = os.path.join(os.path.dirname(
 VIDEO9 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/MOT17-09-FRCNN.mp4")
 
+
 def train():
     tracker = Tracker()
     # names = ['MOT17-05']
@@ -48,10 +49,8 @@ def convert():
     tracker.convert(pipeline)
 
 
-def predict(tpu=False):
+def predict():
     tracker = Tracker()
-    if tpu:
-        inference = Inference()
     hd = HumanDetection()
 
     cap = cv.VideoCapture(VIDEO5)
@@ -101,10 +100,7 @@ def predict(tpu=False):
             if len(objs) <= obj_id:
                 continue
             box, obj_img = tracker.formaliza_data(objs[obj_id], cv_img)
-            if not tpu:
-                prev_vector = tracker.predict([obj_img], [box])
-            else:
-                prev_vector = inference.predict([obj_img], [box])
+            prev_vector = tracker.predict([obj_img], [box])
         else:
             bboxes_batch = []
             obj_imgs_batch = []
@@ -114,10 +110,7 @@ def predict(tpu=False):
                 bboxes_batch.append(box)
                 obj_imgs_batch.append(obj_img)
 
-            if not tpu:
-                vectors = tracker.predict(obj_imgs_batch, bboxes_batch)
-            else:
-                vectors = inference.predict(obj_imgs_batch, bboxes_batch)
+            vectors = tracker.predict(obj_imgs_batch, bboxes_batch)
             argmax = 0
             distancemax = None
             vectormax = None
@@ -139,6 +132,88 @@ def predict(tpu=False):
             print("Min distance:", distancemax)
             if distancemax < 10:
                 prev_vector = vectormax
+                obj = objs[argmax]
+                image.draw_objs(pil_img, [obj])
+
+        # Test human detection
+        # image.draw_objs(pil_img, objs)
+
+        img = image.convert_pil_to_cv(pil_img)
+        cv.imshow('Video', img)
+        if cv.waitKey(10) & 0xFF == ord('q'):
+            break
+
+        # Calculate frames per second (FPS)
+        print("Total estimated time: ",
+              (cv.getTickCount()-timer)/cv.getTickFrequency())
+        fps = cv.getTickFrequency() / (cv.getTickCount() - timer)
+        print("FPS: {:.1f}".format(fps))
+
+
+def infer():
+    inference = Inference()
+    hd = HumanDetection()
+
+    cap = cv.VideoCapture(VIDEO5)
+    if (cap.isOpened() == False):
+        print("Error opening video stream or file")
+
+    video_len = cap.get(cv.CAP_PROP_FRAME_COUNT)
+    skipped_frame = randint(0, video_len)
+    print("Video length:", video_len)
+    print("Rand skipped frame:", skipped_frame)
+    time.sleep(5)
+
+    while(cap.isOpened()):
+        timer = cv.getTickCount()
+        ret, frame = cap.read()
+
+        if ret != True:
+            break
+        if skipped_frame > 0:
+            skipped_frame -= 1
+            continue
+
+        print("======================================")
+
+        imgstart = time.time()
+        cv_img = cv.resize(frame, (300, 300))
+
+        # Gray scale situtation
+        # cv_img = cv.cvtColor(cv_img, cv.COLOR_BGR2GRAY)
+        # cv_img = cv.cvtColor(cv_img, cv.COLOR_GRAY2BGR)
+
+        pil_img = image.convert_cv_to_pil(cv_img)
+        imgend = time.time()
+        print('Image estimated time {:.4f}'.format(imgend-imgstart))
+
+        tpustart = time.time()
+        objs = hd.predict(cv_img)
+        tpuend = time.time()
+        print('TPU estimated time {:.4f}'.format(tpuend-tpustart))
+
+        if len(objs) == 0:
+            continue
+
+        if inference.prev_feature is None:
+            obj_id = 0
+            if len(objs) <= obj_id:
+                continue
+            box, obj_img = inference.formaliza_data(objs[obj_id], cv_img)
+            inference.predict([obj_img], [box], True)
+        else:
+            bboxes_batch = []
+            obj_imgs_batch = []
+
+            for obj in objs:
+                box, obj_img = inference.formaliza_data(obj, cv_img)
+                bboxes_batch.append(box)
+                obj_imgs_batch.append(obj_img)
+
+            confidences = inference.predict(obj_imgs_batch, bboxes_batch)
+            argmax = np.argmax(confidences)
+            print('Confidences:', confidences)
+            if confidences[argmax] > 0.7:
                 obj = objs[argmax]
                 image.draw_objs(pil_img, [obj])
 

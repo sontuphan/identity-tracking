@@ -48,9 +48,9 @@ if __name__ == "__main__":
             if sys.argv[3] == "convert":
                 tracker.convert()
             if sys.argv[3] == "predict":
-                tracker.predict(False)
-            if sys.argv[3] == "inference":
-                tracker.predict(True)
+                tracker.predict()
+            if sys.argv[3] == "infer":
+                tracker.infer()
 
         elif sys.argv[2] == "extractor":
             if sys.argv[3] == "test_96":
