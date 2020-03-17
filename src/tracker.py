@@ -74,14 +74,11 @@ class Tracker:
         return box, obj_img
 
     @tf.function
-    def train_step(self, anis, anbs, pis, pbs, nis, nbs):
+    def train_step(self, anis, pis, nis):
         with tf.GradientTape() as tape:
-            _afs = self.extractor(anis)
-            afs = tf.concat([_afs, anbs], 1)
-            _pfs = self.extractor(pis)
-            pfs = tf.concat([_pfs, pbs], 1)
-            _nfs = self.extractor(nis)
-            nfs = tf.concat([_nfs, nbs], 1)
+            afs = self.extractor(anis)
+            pfs = self.extractor(pis)
+            nfs = self.extractor(nis)
             loss = self.loss_function(afs, pfs, nfs)
 
         variables = self.extractor.trainable_variables
@@ -100,18 +97,14 @@ class Tracker:
                 while True:
                     imgs, bboxes = next(iterator)
 
-                    anis, pis, nis = tf.split(imgs, [1, 1, 1], axis=1)
-                    anis = tf.reshape(
-                        anis, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
+                    ais, pis, nis = tf.split(imgs, [1, 1, 1], axis=1)
+                    ais = tf.reshape(
+                        ais, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
                     pis = tf.reshape(
                         pis, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
                     nis = tf.reshape(
                         nis, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
-                    anbs, pbs, nbs = tf.split(bboxes, [1, 1, 1], axis=1)
-                    anbs = tf.reshape(anbs, [self.batch_size, 4])
-                    pbs = tf.reshape(pbs, [self.batch_size, 4])
-                    nbs = tf.reshape(nbs, [self.batch_size, 4])
-                    self.train_step(anis, anbs, pis, pbs, nis, nbs)
+                    self.train_step(ais, pis, nis)
 
                     steps_per_epoch += 1
 
@@ -166,6 +159,7 @@ class Tracker:
 
 class Inference:
     def __init__(self):
+        self.frame_shape = (300, 300)
         self.image_shape = IMAGE_SHAPE
         self.interpreter = tflite.Interpreter(
             model_path=EDGE_MODEL,
@@ -174,15 +168,17 @@ class Inference:
             ])
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
-        self.threshold = 9
+        self.threshold = 8
         self.prev_feature = None
+        self.neighbourRegion = None
 
     def formaliza_data(self, obj, frame):
         xmin = 0 if obj.bbox.xmin < 0 else obj.bbox.xmin
-        xmax = 300 if obj.bbox.xmax > 300 else obj.bbox.xmax
+        xmax = self.frame_shape[0] if obj.bbox.xmax > self.frame_shape[0] else obj.bbox.xmax
         ymin = 0 if obj.bbox.ymin < 0 else obj.bbox.ymin
-        ymax = 300 if obj.bbox.ymax > 300 else obj.bbox.ymax
-        box = np.array([xmin/300, ymin/300, xmax/300, ymax/300])
+        ymax = self.frame_shape[1] if obj.bbox.ymax > self.frame_shape[1] else obj.bbox.ymax
+        box = np.array([xmin/self.frame_shape[0], ymin/self.frame_shape[1],
+                        xmax/self.frame_shape[0], ymax/self.frame_shape[1]])
         if xmin == xmax:
             return np.zeros(self.image_shape)
         if ymin == ymax:
@@ -192,12 +188,23 @@ class Inference:
         obj_img = resized_obj_img/255.0
         return box, obj_img
 
-    def test_variance(self, distances):
-        mean = np.mean(distances)
-        print(mean)
+    def setNeighbourRegion(self, box):
+        b = np.array(box)
+        b[0::2] *= self.frame_shape[0]
+        b[1::2] *= self.frame_shape[1]
+        dx = b[2]-b[0]
+        dy = b[3]-b[1]
+        b[0] = 0 if b[0] - dx/2 < 0 else b[0] - dx/2
+        b[1] = 0 if b[1] - dy/2 < 0 else b[1] - dy/2
+        b[2] = self.frame_shape[0] if b[0] + dx / \
+            2 > self.frame_shape[0] else b[0] + dx/2
+        b[3] = self.frame_shape[1] if b[1] + dx / \
+            2 > self.frame_shape[1] else b[1] + dx/2
+        b[0::2] /= self.frame_shape[0]
+        b[1::2] /= self.frame_shape[1]
+        self.neighbourRegion = b
 
     def confidence_level(self, distances):
-        self.test_variance(distances)
         deltas = (self.threshold - distances)/self.threshold
         zeros = np.zeros(deltas.shape, dtype=np.float32)
         logits = np.maximum(deltas, zeros)
@@ -217,26 +224,30 @@ class Inference:
         return np.array(feature[0])
 
     def predict(self, imgs, bboxes, init=False):
-        bboxes = np.array(bboxes)*100
         if init:
             if len(imgs) != 1 or len(bboxes) != 1:
                 raise ValueError('You must initialize one object only.')
             encoding = self.infer(imgs[0])
-            self.prev_feature = np.concatenate((encoding, bboxes[0]))
+            self.prev_feature = encoding
+            # self.prev_feature = np.concatenate((encoding, bboxes[0]))
             return 0, .0
         else:
             estart = time.time()
             distances = np.array([])
 
-            for index, img in enumerate(imgs):
-                bbox = bboxes[index]
+            for _, img in enumerate(imgs):
+                # bbox = bboxes[index]
                 encoding = self.infer(img)
-                feature = np.concatenate((encoding, bbox))
+                feature = encoding
+                # feature = np.concatenate((encoding, bbox))
                 distance = np.linalg.norm(self.prev_feature - feature)
                 distances = np.append(distances, distance)
 
             confidences = self.confidence_level(distances)
+            argmax = np.argmax(confidences)
+            self.setNeighbourRegion(bboxes[argmax])
+
             eend = time.time()
             print('Distances:', distances)
             print('Extractor estimated time {:.4f}'.format(eend-estart))
-            return confidences
+            return confidences, argmax

@@ -38,7 +38,7 @@ def train():
 
     dataset = pipeline.shuffle(256).batch(
         tracker.batch_size, drop_remainder=True)
-    tracker.train(dataset, 5)
+    tracker.train(dataset, 10)
 
 
 def convert():
@@ -130,7 +130,7 @@ def predict():
                     argmax = index
             print("Distances:", distances)
             print("Min distance:", distancemax)
-            if distancemax < 10:
+            if distancemax < 8:
                 prev_vector = vectormax
                 obj = objs[argmax]
                 image.draw_objs(pil_img, [obj])
@@ -164,6 +164,7 @@ def infer():
     print("Rand skipped frame:", skipped_frame)
     time.sleep(5)
 
+    history = None
     while(cap.isOpened()):
         timer = cv.getTickCount()
         ret, frame = cap.read()
@@ -210,18 +211,23 @@ def infer():
                 bboxes_batch.append(box)
                 obj_imgs_batch.append(obj_img)
 
-            confidences = inference.predict(obj_imgs_batch, bboxes_batch)
-            argmax = np.argmax(confidences)
+            confidences, argmax = inference.predict(
+                obj_imgs_batch, bboxes_batch)
             print('Confidences:', confidences)
             if confidences[argmax] > 0.7:
                 obj = objs[argmax]
                 image.draw_objs(pil_img, [obj])
+                history = image.crop(pil_img, obj)
 
         # Test human detection
         # image.draw_objs(pil_img, objs)
 
         img = image.convert_pil_to_cv(pil_img)
         cv.imshow('Video', img)
+        if history is not None:
+            img2 = image.convert_pil_to_cv(history)
+            cv.imshow('Video 2', img2)
+            cv.moveWindow('Video 2', 500, 500)
         if cv.waitKey(10) & 0xFF == ord('q'):
             break
 
