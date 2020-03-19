@@ -38,7 +38,7 @@ def train():
 
     dataset = pipeline.shuffle(256).batch(
         tracker.batch_size, drop_remainder=True)
-    tracker.train(dataset, 10)
+    tracker.train(dataset, 5)
 
 
 def convert():
@@ -130,7 +130,7 @@ def predict():
                     argmax = index
             print("Distances:", distances)
             print("Min distance:", distancemax)
-            if distancemax < 8:
+            if distancemax < 10:
                 prev_vector = vectormax
                 obj = objs[argmax]
                 image.draw_objs(pil_img, [obj])

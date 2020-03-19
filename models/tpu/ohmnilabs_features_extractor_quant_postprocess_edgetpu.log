@@ -6,8 +6,8 @@ Operator                       Count      Status
 
 LOGISTIC                       1          Mapped to Edge TPU
 ADD                            10         Mapped to Edge TPU
-QUANTIZE                       1          Operation is otherwise supported, but not mapped due to some unspecified limitation
 PAD                            5          Mapped to Edge TPU
+QUANTIZE                       1          Operation is otherwise supported, but not mapped due to some unspecified limitation
 CONV_2D                        35         Mapped to Edge TPU
 DEPTHWISE_CONV_2D              17         Mapped to Edge TPU
 DEQUANTIZE                     1          Operation is working on an unsupported data type

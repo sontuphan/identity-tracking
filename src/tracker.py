@@ -168,9 +168,10 @@ class Inference:
             ])
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
-        self.threshold = 8
+        self.threshold = 10
+        self.position_scale = 10
         self.prev_feature = None
-        self.neighbourRegion = None
+        self.prev_position = None
 
     def formaliza_data(self, obj, frame):
         xmin = 0 if obj.bbox.xmin < 0 else obj.bbox.xmin
@@ -187,22 +188,6 @@ class Inference:
         resized_obj_img = cv.resize(cropped_obj_img, self.image_shape)
         obj_img = resized_obj_img/255.0
         return box, obj_img
-
-    def setNeighbourRegion(self, box):
-        b = np.array(box)
-        b[0::2] *= self.frame_shape[0]
-        b[1::2] *= self.frame_shape[1]
-        dx = b[2]-b[0]
-        dy = b[3]-b[1]
-        b[0] = 0 if b[0] - dx/2 < 0 else b[0] - dx/2
-        b[1] = 0 if b[1] - dy/2 < 0 else b[1] - dy/2
-        b[2] = self.frame_shape[0] if b[0] + dx / \
-            2 > self.frame_shape[0] else b[0] + dx/2
-        b[3] = self.frame_shape[1] if b[1] + dx / \
-            2 > self.frame_shape[1] else b[1] + dx/2
-        b[0::2] /= self.frame_shape[0]
-        b[1::2] /= self.frame_shape[1]
-        self.neighbourRegion = b
 
     def confidence_level(self, distances):
         deltas = (self.threshold - distances)/self.threshold
@@ -229,25 +214,29 @@ class Inference:
                 raise ValueError('You must initialize one object only.')
             encoding = self.infer(imgs[0])
             self.prev_feature = encoding
-            # self.prev_feature = np.concatenate((encoding, bboxes[0]))
+            self.prev_position = bboxes[0]
             return 0, .0
         else:
             estart = time.time()
-            distances = np.array([])
+            features = np.array([])
+            positions = np.array([])
 
-            for _, img in enumerate(imgs):
-                # bbox = bboxes[index]
+            for index, img in enumerate(imgs):
                 encoding = self.infer(img)
-                feature = encoding
-                # feature = np.concatenate((encoding, bbox))
-                distance = np.linalg.norm(self.prev_feature - feature)
-                distances = np.append(distances, distance)
+                feature = np.linalg.norm(self.prev_feature - encoding)
+                features = np.append(features, feature)
+                bbox = bboxes[index]
+                position = np.linalg.norm(
+                    self.prev_position - bbox) * self.position_scale
+                positions = np.append(positions, position)
 
+            distances = features + positions
             confidences = self.confidence_level(distances)
             argmax = np.argmax(confidences)
-            self.setNeighbourRegion(bboxes[argmax])
 
             eend = time.time()
+            print('Features:', features)
+            print('Positions:', positions)
             print('Distances:', distances)
             print('Extractor estimated time {:.4f}'.format(eend-estart))
             return confidences, argmax
