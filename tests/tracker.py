@@ -196,7 +196,7 @@ def infer():
         if len(objs) == 0:
             continue
 
-        if inference.prev_feature is None:
+        if inference.prev_encoding is None:
             obj_id = 0
             if len(objs) <= obj_id:
                 continue
@@ -214,7 +214,7 @@ def infer():
             confidences, argmax = inference.predict(
                 obj_imgs_batch, bboxes_batch)
             print('Confidences:', confidences)
-            if confidences[argmax] > 0.7:
+            if argmax is not None:
                 obj = objs[argmax]
                 image.draw_objs(pil_img, [obj])
                 history = image.crop(pil_img, obj)
