@@ -20,12 +20,16 @@ def resize(img, size):
     return img.resize(size, Image.ANTIALIAS)
 
 
+def crop(img, obj):
+    return img.crop((obj.bbox.xmin, obj.bbox.ymin, obj.bbox.xmax, obj.bbox.ymax))
+
+
 def colorize(number):
     color = hashlib.sha1(str(number).encode('utf-8')).hexdigest()
     return "#"+color[-6:]
 
 
-def draw_box(img, objs):
+def draw_objs(img, objs):
     draw = ImageDraw.Draw(img)
     for obj in objs:
         color = colorize(obj.id)
@@ -36,6 +40,13 @@ def draw_box(img, objs):
                   'id: %d\nlabel: %s\nscore: %.2f' % (
                       obj.id, obj.label, obj.score),
                   fill=color)
+
+
+def draw_box(img, bbox):
+    draw = ImageDraw.Draw(img)
+    for box in bbox:
+        draw.rectangle([(box[0], box[1]), (box[2], box[3])],
+                       outline='red')
 
 
 def draw_point(img, point, color):
