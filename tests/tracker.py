@@ -38,7 +38,7 @@ def train():
 
     dataset = pipeline.shuffle(256).batch(
         tracker.batch_size, drop_remainder=True)
-    tracker.train(dataset, 5)
+    tracker.train(dataset, 10)
 
 
 def convert():
@@ -154,7 +154,7 @@ def infer():
     inference = Inference()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO5)
+    cap = cv.VideoCapture(VIDEO0)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 

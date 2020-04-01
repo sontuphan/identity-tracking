@@ -25,7 +25,7 @@ class Extractor(keras.Model):
             input_shape=(96, 96, 3), include_top=False, weights='imagenet')
         self.conv.trainable = False
         self.pool = keras.layers.GlobalAveragePooling2D()
-        self.fc = keras.layers.Dense(1024, activation='sigmoid')
+        self.fc = keras.layers.Dense(512, activation='sigmoid')
 
     def call(self, imgs):
         conv_output = self.conv(imgs)
@@ -55,7 +55,7 @@ class Tracker:
     def loss_function(self, afs, pfs, nfs):
         lloss = tf.sqrt(tf.reduce_sum(tf.square(afs - pfs), 1))
         rloss = tf.sqrt(tf.reduce_sum(tf.square(afs - nfs), 1))
-        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 12, 0))
+        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 10, 0))
         return loss
 
     def formaliza_data(self, obj, frame):
