@@ -17,15 +17,18 @@ MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 EDGE_MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "../models/tpu/ohmnilabs_features_extractor_quant_postprocess_edgetpu.tflite")
 
+tf.debugging.set_log_device_placement(True)
 
 class Extractor(keras.Model):
     def __init__(self):
         super(Extractor, self).__init__()
-        self.conv = keras.applications.MobileNetV2(
-            input_shape=(96, 96, 3), include_top=False, weights='imagenet')
-        self.conv.trainable = False
-        self.pool = keras.layers.GlobalAveragePooling2D()
-        self.fc = keras.layers.Dense(512, activation='sigmoid')
+        strategy = tf.distribute.MirroredStrategy()
+        with strategy.scope():
+            self.conv = keras.applications.MobileNetV2(
+                input_shape=(96, 96, 3), include_top=False, weights='imagenet')
+            self.conv.trainable = False
+            self.pool = keras.layers.GlobalAveragePooling2D()
+            self.fc = keras.layers.Dense(512, activation='sigmoid')
 
     def call(self, imgs):
         conv_output = self.conv(imgs)
