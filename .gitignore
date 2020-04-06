@@ -1,3 +1,4 @@
 /dist
 __pycache__
 /models/idtr
+.vscode
