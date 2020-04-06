@@ -36,9 +36,9 @@ def train():
         else:
             pipeline = pipeline.concatenate(next_pipeline)
 
-    dataset = pipeline.shuffle(256).batch(
+    dataset = pipeline.shuffle(1024).batch(
         tracker.batch_size, drop_remainder=True)
-    tracker.train(dataset, 10)
+    tracker.train(dataset, 20)
 
 
 def convert():
@@ -154,7 +154,7 @@ def infer():
     inference = Inference()
     hd = HumanDetection()
 
-    cap = cv.VideoCapture(VIDEO0)
+    cap = cv.VideoCapture(VIDEO5)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
@@ -179,11 +179,6 @@ def infer():
 
         imgstart = time.time()
         cv_img = cv.resize(frame, (300, 300))
-
-        # Gray scale situtation
-        # cv_img = cv.cvtColor(cv_img, cv.COLOR_BGR2GRAY)
-        # cv_img = cv.cvtColor(cv_img, cv.COLOR_GRAY2BGR)
-
         pil_img = image.convert_cv_to_pil(cv_img)
         imgend = time.time()
         print('Image estimated time {:.4f}'.format(imgend-imgstart))
@@ -216,8 +211,8 @@ def infer():
             print('Confidences:', confidences)
             if argmax is not None:
                 obj = objs[argmax]
-                image.draw_objs(pil_img, [obj])
                 history = image.crop(pil_img, obj)
+                image.draw_objs(pil_img, [obj])
 
         # Test human detection
         # image.draw_objs(pil_img, objs)

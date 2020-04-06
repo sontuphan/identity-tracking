@@ -19,6 +19,7 @@ EDGE_MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 tf.debugging.set_log_device_placement(True)
 
+
 class Extractor(keras.Model):
     def __init__(self):
         super(Extractor, self).__init__()
@@ -230,12 +231,14 @@ class Inference:
             features = np.array([])
             positions = np.array([])
 
-            for index, img in enumerate(imgs):
+            for index, bbox in enumerate(bboxes):
+                # Appreance
+                img = imgs[index]
                 encoding = self.infer(img)
                 encodings.append(encoding)
                 feature = np.linalg.norm(self.prev_encoding - encoding)
                 features = np.append(features, feature)
-                bbox = bboxes[index]
+                # Position
                 position = np.linalg.norm(
                     self.prev_bbox - bbox) * self.tradeoff
                 positions = np.append(positions, position)

@@ -3,7 +3,6 @@ import sys
 import tensorflow as tf
 from tests import utils, factory, tracker
 from tests import extractor, humandetection
-from pycar import start as car
 
 tf.get_logger().setLevel('ERROR')
 
@@ -61,18 +60,6 @@ if __name__ == "__main__":
                 extractor.test_inception()
             if sys.argv[3] == "test_mobilenet":
                 extractor.test_mobilenet()
-
-    elif sys.argv[1] == '--pycar':
-        if sys.argv[2] == "test_camera":
-            car.test_camera()
-        if sys.argv[2] == "test_snapshot":
-            car.test_snapshot()
-        if sys.argv[2] == "test_action":
-            car.test_action()
-        if sys.argv[2] == "test_speed":
-            car.test_speed()
-        if sys.argv[2] == "start":
-            car.start()
 
     else:
         print("Error: Invalid option!")
