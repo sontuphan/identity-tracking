@@ -59,7 +59,7 @@ class Tracker:
     def loss_function(self, afs, pfs, nfs):
         lloss = tf.sqrt(tf.reduce_sum(tf.square(afs - pfs), 1))
         rloss = tf.sqrt(tf.reduce_sum(tf.square(afs - nfs), 1))
-        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 10, 0))
+        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 20, 0))
         return loss
 
     def formaliza_data(self, obj, frame):
