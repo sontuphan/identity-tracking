@@ -4,7 +4,9 @@
 
 Dataset: `https://drive.google.com/drive/folders/1hG0kJBNwGDXyJ1XtG4PK7zX4RarCQhrr?usp=sharing`
 
-Download `train.zip` if you only care about he training process. In case you intent to edit the data, dowload `raw.zip`
+Download `train.zip` if you only care about he training process. In case you intent to edit the data, dowload `raw.zip`.
+
+After dowloading, create a `data` folder in the project root folder and place all files there.
 
 ## How to train?
 
