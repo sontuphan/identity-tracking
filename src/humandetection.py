@@ -12,6 +12,7 @@ MODELS = os.path.join(os.path.dirname(
 
 class HumanDetection:
     def __init__(self, confidence=0.5):
+        self.input_shape = (300, 300)
         self.labels = self.load_labels()
         self.interpreter = tflite.Interpreter(
             model_path=MODELS,
@@ -45,14 +46,10 @@ class HumanDetection:
 
         def make(i):
             ymin, xmin, ymax, xmax = boxes[i]
-            return Object(
-                id=0,
-                frame=0,
-                label=int(class_ids[i]),
-                score=scores[i],
-                bbox=BBox(xmin=int(xmin*300),
-                          ymin=int(ymin*300),
-                          xmax=int(xmax*300),
-                          ymax=int(ymax*300)))
+            return [0, int(class_ids[i]), 0, scores[i],
+                    int(xmin * self.input_shape[0]),
+                    int(ymin * self.input_shape[1]),
+                    int(xmax * self.input_shape[0]),
+                    int(ymax * self.input_shape[1])]
 
         return [make(i) for i in range(count) if (scores[i] >= self.confidence and int(class_ids[i]) == 0)]

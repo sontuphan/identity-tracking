@@ -5,6 +5,7 @@ import tensorflow_hub as hub
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import cv2 as cv
 
 from src.factory import Factory
 from utils import image
@@ -53,9 +54,9 @@ class ExtractorInception(tf.keras.Model):
         return self.model(x)
 
 
-class ExtractorMobilenet(tf.keras.Model):
+class ExtractorSiamnet(tf.keras.Model):
     def __init__(self):
-        super(ExtractorMobilenet, self).__init__()
+        super(ExtractorSiamnet, self).__init__()
         self.conv = tf.keras.applications.MobileNetV2(
             input_shape=(96, 96, 3), include_top=False, weights='imagenet')
         self.conv.trainable = False
@@ -74,18 +75,17 @@ class ExtractorMobilenet(tf.keras.Model):
 
 
 def test_96():
-    IMAGE_SHAPE = (96, 96)
-    factory = Factory(img_shape=IMAGE_SHAPE)
+    factory = Factory('MOT17-05')
     dataset = factory.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = factory.load_frame(obj[2])
-        obj = factory.convert_array_to_object(obj)
-        cropped_img = image.crop(img, obj)
-        resized_img = image.resize(cropped_img, IMAGE_SHAPE)
-        img_arr = image.convert_pil_to_cv(resized_img)
-        objs_img.append(img_arr)
+        obj_id = obj[2]
+        obj_box = [obj[4], obj[5], obj[6], obj[7]]
+        img = factory.load_frame(obj_id)
+        cropped_img = image.crop(img, obj_box)
+        resized_img = image.resize(cropped_img, (96, 96))
+        objs_img.append(resized_img)
 
     objs_img = np.array(objs_img)/255.0
     extractor = Extractor96()
@@ -98,18 +98,17 @@ def test_96():
 
 
 def test_224():
-    IMAGE_SHAPE = (224, 224)
-    factory = Factory(img_shape=IMAGE_SHAPE)
+    factory = Factory('MOT17-05')
     dataset = factory.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = factory.load_frame(obj[2])
-        obj = factory.convert_array_to_object(obj)
-        cropped_img = image.crop(img, obj)
-        resized_img = image.resize(cropped_img, IMAGE_SHAPE)
-        img_arr = image.convert_pil_to_cv(resized_img)
-        objs_img.append(img_arr)
+        obj_id = obj[2]
+        obj_box = [obj[4], obj[5], obj[6], obj[7]]
+        img = factory.load_frame(obj_id)
+        cropped_img = image.crop(img, obj_box)
+        resized_img = image.resize(cropped_img, (224, 224))
+        objs_img.append(resized_img)
 
     objs_img = np.array(objs_img)/255.0
     extractor = Extractor224()
@@ -122,18 +121,17 @@ def test_224():
 
 
 def test_inception():
-    IMAGE_SHAPE = (299, 299)
-    factory = Factory(img_shape=IMAGE_SHAPE)
+    factory = Factory('MOT17-05')
     dataset = factory.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = factory.load_frame(obj[2])
-        obj = factory.convert_array_to_object(obj)
-        cropped_img = image.crop(img, obj)
-        resized_img = image.resize(cropped_img, IMAGE_SHAPE)
-        img_arr = image.convert_pil_to_cv(resized_img)
-        objs_img.append(img_arr)
+        obj_id = obj[2]
+        obj_box = [obj[4], obj[5], obj[6], obj[7]]
+        img = factory.load_frame(obj_id)
+        cropped_img = image.crop(img, obj_box)
+        resized_img = image.resize(cropped_img, (299, 299))
+        objs_img.append(resized_img)
 
     objs_img = np.array(objs_img)/255.0
     extractor = ExtractorInception()
@@ -146,14 +144,18 @@ def test_inception():
     plt.show()
 
 
-def test_mobilenet():
-    extractor = ExtractorMobilenet()
-    factory = Factory()
+def test_siamnet():
+    extractor = ExtractorSiamnet()
+    factory = Factory('MOT17-05')
     generator = iter(factory.generator())
 
     while True:
         imgs, bboxes = next(generator)
-        imgs, bboxes = np.array(imgs), np.array(bboxes)
+        imgs_tensor = []
+        for img in imgs:
+            imgs_tensor.append(image.resize(img, (96, 96)))
+        imgs, bboxes = np.array(imgs_tensor)/255.0, np.array(bboxes)
+
         (anchor, positive, negative) = tf.concat([extractor(imgs), bboxes], 1)
         print('Anchor:', anchor.shape)
         print('Positive:', positive.shape)
@@ -172,11 +174,11 @@ def test_mobilenet():
         # Vizualization
         tensor = None
         for img in imgs:
-            if tensor is None:
-                tensor = img
-            else:
-                tensor = np.concatenate((tensor, img), axis=1)
-        plt.imshow(tensor)
-        plt.show()
-
+            tensor = img if tensor is None else np.concatenate(
+                (tensor, img), axis=1)
+        cv.imshow('Video', tensor)
+        if cv.waitKey(500) & 0xFF == ord('q'):
+                break
         print("================================")
+
+    cv.destroyAllWindows()

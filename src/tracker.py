@@ -17,7 +17,7 @@ MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 EDGE_MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "../models/tpu/ohmnilabs_features_extractor_quant_postprocess_edgetpu.tflite")
 
-tf.debugging.set_log_device_placement(True)
+tf.debugging.set_log_device_placement(False)
 
 
 class Extractor(keras.Model):
@@ -40,7 +40,7 @@ class Extractor(keras.Model):
 
 class Tracker:
     def __init__(self):
-        self.batch_size = 64
+        self.batch_size = 256
         self.image_shape = IMAGE_SHAPE
 
         self.extractor = Extractor()
@@ -78,9 +78,9 @@ class Tracker:
         return box, obj_img
 
     @tf.function
-    def train_step(self, anis, pis, nis):
+    def train_step(self, ais, pis, nis):
         with tf.GradientTape() as tape:
-            afs = self.extractor(anis)
+            afs = self.extractor(ais)
             pfs = self.extractor(pis)
             nfs = self.extractor(nis)
             loss = self.loss_function(afs, pfs, nfs)
@@ -100,7 +100,6 @@ class Tracker:
             try:
                 while True:
                     imgs, bboxes = next(iterator)
-
                     ais, pis, nis = tf.split(imgs, [1, 1, 1], axis=1)
                     ais = tf.reshape(
                         ais, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])

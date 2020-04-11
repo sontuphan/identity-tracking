@@ -1,4 +1,7 @@
 /dist
 __pycache__
+/data/raw
+/data/trainx
+/data/*.zip
 /models/idtr
 .vscode

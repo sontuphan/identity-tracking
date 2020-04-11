@@ -1,25 +1,15 @@
 import sys
 
 import tensorflow as tf
-from tests import utils, factory, tracker
-from tests import extractor, humandetection
+from tests import factory, extractor, dataset
+from tests import humandetection, tracker
 
 tf.get_logger().setLevel('ERROR')
 
 if __name__ == "__main__":
     if sys.argv[1] == "--test":
 
-        if sys.argv[2] == "utils":
-            if sys.argv[3] == "review_image":
-                utils.review_image()
-            if sys.argv[3] == "resize_image":
-                utils.resize_image()
-            if sys.argv[3] == "crop_image":
-                utils.crop_image()
-
-        elif sys.argv[2] == "humandetection":
-            if sys.argv[3] == "test_with_camera":
-                humandetection.test_with_camera()
+        if sys.argv[2] == "humandetection":
             if sys.argv[3] == "test_with_video_1":
                 humandetection.test_with_video(1)
             if sys.argv[3] == "test_with_video_2":
@@ -30,16 +20,12 @@ if __name__ == "__main__":
                 humandetection.test_with_video(4)
 
         elif sys.argv[2] == "factory":
-            if sys.argv[3] == "generate_data":
-                factory.generate_data()
-            if sys.argv[3] == "review_source":
-                factory.review_source()
-            if sys.argv[3] == "gen_triplets":
-                factory.gen_triplets()
+            if sys.argv[3] == "generate_triplets":
+                factory.generate_triplets()
             if sys.argv[3] == "test_generator":
                 factory.test_generator()
-            if sys.argv[3] == "test_pipeline":
-                factory.test_pipeline()
+            if sys.argv[3] == "review_source":
+                factory.review_source()
 
         elif sys.argv[2] == "tracker":
             if sys.argv[3] == "train":
@@ -58,8 +44,15 @@ if __name__ == "__main__":
                 extractor.test_224()
             if sys.argv[3] == "test_inception":
                 extractor.test_inception()
-            if sys.argv[3] == "test_mobilenet":
-                extractor.test_mobilenet()
+            if sys.argv[3] == "test_siamnet":
+                extractor.test_siamnet()
 
+        elif sys.argv[2] == "dataset":
+            if sys.argv[3] == "show_info":
+                dataset.show_info()
+            if sys.argv[3] == "benchmark":
+                dataset.benchmark()
+            if sys.argv[3] == "show_triplets":
+                dataset.show_triplets()
     else:
         print("Error: Invalid option!")

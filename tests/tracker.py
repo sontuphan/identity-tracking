@@ -7,7 +7,7 @@ from random import randint
 from utils import image
 from src.humandetection import HumanDetection
 from src.tracker import Tracker, Inference
-from src.factory import Factory
+from src.dataset import Dataset
 
 VIDEO0 = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "../data/video/chaplin.mp4")
@@ -21,31 +21,16 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 def train():
     tracker = Tracker()
-    # names = ['MOT17-05']
-    # names = ['MOT17-05', 'MOT17-09', 'MOT17-10']
-    names = ['MOT17-02', 'MOT17-04', 'MOT17-05',
-             'MOT17-09', 'MOT17-10', 'MOT17-11']
+    dataset = Dataset(image_shape=(96, 96), batch_size=tracker.batch_size)
 
-    pipeline = None
-    for name in names:
-        generator = Factory(
-            name, tracker.batch_size, tracker.image_shape)
-        next_pipeline = generator.input_pipeline()
-        if pipeline is None:
-            pipeline = next_pipeline
-        else:
-            pipeline = pipeline.concatenate(next_pipeline)
-
-    dataset = pipeline.shuffle(1024).batch(
-        tracker.batch_size, drop_remainder=True)
-    tracker.train(dataset, 20)
+    pipeline = dataset.pipeline()
+    tracker.train(pipeline, 20)
 
 
 def convert():
     tracker = Tracker()
-    generator = Factory(
-        'MOT17-05', tracker.batch_size, tracker.image_shape)
-    pipeline = generator.input_pipeline()
+    dataset = Dataset(image_shape=(96, 96), batch_size=tracker.batch_size)
+    pipeline = dataset.pipeline()
     tracker.convert(pipeline)
 
 
@@ -77,18 +62,16 @@ def predict():
         print("======================================")
 
         imgstart = time.time()
-        cv_img = cv.resize(frame, (300, 300))
+        img = cv.resize(frame, (300, 300))
 
         # Gray scale situtation
-        # cv_img = cv.cvtColor(cv_img, cv.COLOR_BGR2GRAY)
-        # cv_img = cv.cvtColor(cv_img, cv.COLOR_GRAY2BGR)
+        # img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
-        pil_img = image.convert_cv_to_pil(cv_img)
         imgend = time.time()
         print('Image estimated time {:.4f}'.format(imgend-imgstart))
 
         tpustart = time.time()
-        objs = hd.predict(cv_img)
+        objs = hd.predict(img)
         tpuend = time.time()
         print('TPU estimated time {:.4f}'.format(tpuend-tpustart))
 
@@ -99,14 +82,14 @@ def predict():
             obj_id = 0
             if len(objs) <= obj_id:
                 continue
-            box, obj_img = tracker.formaliza_data(objs[obj_id], cv_img)
+            box, obj_img = tracker.formaliza_data(objs[obj_id], img)
             prev_vector = tracker.predict([obj_img], [box])
         else:
             bboxes_batch = []
             obj_imgs_batch = []
 
             for obj in objs:
-                box, obj_img = tracker.formaliza_data(obj, cv_img)
+                box, obj_img = tracker.formaliza_data(obj, img)
                 bboxes_batch.append(box)
                 obj_imgs_batch.append(obj_img)
 
@@ -133,12 +116,11 @@ def predict():
             if distancemax < 10:
                 prev_vector = vectormax
                 obj = objs[argmax]
-                image.draw_objs(pil_img, [obj])
+                img = image.draw_objs(img, [obj])
 
         # Test human detection
-        # image.draw_objs(pil_img, objs)
+        # img = image.draw_objs(img, objs)
 
-        img = image.convert_pil_to_cv(pil_img)
         cv.imshow('Video', img)
         if cv.waitKey(10) & 0xFF == ord('q'):
             break
@@ -178,13 +160,12 @@ def infer():
         print("======================================")
 
         imgstart = time.time()
-        cv_img = cv.resize(frame, (300, 300))
-        pil_img = image.convert_cv_to_pil(cv_img)
+        img = cv.resize(frame, (300, 300))
         imgend = time.time()
         print('Image estimated time {:.4f}'.format(imgend-imgstart))
 
         tpustart = time.time()
-        objs = hd.predict(cv_img)
+        objs = hd.predict(img)
         tpuend = time.time()
         print('TPU estimated time {:.4f}'.format(tpuend-tpustart))
 
@@ -195,14 +176,14 @@ def infer():
             obj_id = 0
             if len(objs) <= obj_id:
                 continue
-            box, obj_img = inference.formaliza_data(objs[obj_id], cv_img)
+            box, obj_img = inference.formaliza_data(objs[obj_id], img)
             inference.predict([obj_img], [box], True)
         else:
             bboxes_batch = []
             obj_imgs_batch = []
 
             for obj in objs:
-                box, obj_img = inference.formaliza_data(obj, cv_img)
+                box, obj_img = inference.formaliza_data(obj, img)
                 bboxes_batch.append(box)
                 obj_imgs_batch.append(obj_img)
 
@@ -211,18 +192,16 @@ def infer():
             print('Confidences:', confidences)
             if argmax is not None:
                 obj = objs[argmax]
-                history = image.crop(pil_img, obj)
-                image.draw_objs(pil_img, [obj])
+                history = image.crop(img, obj)
+                img = image.draw_objs(img, [obj])
 
         # Test human detection
-        # image.draw_objs(pil_img, objs)
+        # img = image.draw_objs(img, objs)
 
-        img = image.convert_pil_to_cv(pil_img)
         cv.imshow('Video', img)
         if history is not None:
-            img2 = image.convert_pil_to_cv(history)
-            cv.imshow('Video 2', img2)
-            cv.moveWindow('Video 2', 500, 500)
+            cv.imshow('Tracking object', history)
+            cv.moveWindow('Tracking object', 500, 500)
         if cv.waitKey(10) & 0xFF == ord('q'):
             break
 
