@@ -10,13 +10,13 @@ from src.tracker import Tracker, Inference
 from src.dataset import Dataset
 
 VIDEO0 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/chaplin.mp4")
+    os.path.abspath(__file__)), "../video/chaplin.mp4")
 VIDEO5 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/MOT17-05-SDP.mp4")
+    os.path.abspath(__file__)), "../video/MOT17-05-SDP.mp4")
 VIDEO7 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/MOT17-07-SDP.mp4")
+    os.path.abspath(__file__)), "../video/MOT17-07-SDP.mp4")
 VIDEO9 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/MOT17-09-FRCNN.mp4")
+    os.path.abspath(__file__)), "../video/MOT17-09-FRCNN.mp4")
 
 
 def train():

@@ -55,11 +55,11 @@ class Dataset:
             yield imgs, boxes
 
     def prepare_for_training(self, ds):
-        ds = ds.cache()
+        # ds = ds.cache()
         ds = ds.shuffle(1024)
         ds = ds.repeat()
         ds = ds.batch(self.batch_size)
-        ds = ds.prefetch(buffer_size=AUTOTUNE)
+        # ds = ds.prefetch(buffer_size=AUTOTUNE)
         return ds
 
     def pipeline(self):
