@@ -1,6 +1,3 @@
 __pycache__
-/data/raw
-/data/train
-/data/*.zip
+/data
 /models/idtr
-.vscode
