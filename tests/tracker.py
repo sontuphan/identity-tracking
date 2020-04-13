@@ -21,7 +21,8 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 def train():
     tracker = Tracker()
-    dataset = Dataset(image_shape=(96, 96), batch_size=tracker.batch_size)
+    dataset = Dataset(image_shape=tracker.image_shape,
+                      batch_size=tracker.batch_size)
 
     pipeline = dataset.pipeline()
     tracker.train(pipeline, 20)

@@ -54,5 +54,7 @@ if __name__ == "__main__":
                 dataset.benchmark()
             if sys.argv[3] == "show_triplets":
                 dataset.show_triplets()
+            if sys.argv[3] == "show_extractor":
+                dataset.show_extractor()
     else:
         print("Error: Invalid option!")

@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import os
 import time
+import datetime
 import tensorflow as tf
 from tensorflow import keras, lite
 import tflite_runtime.interpreter as tflite
@@ -16,8 +17,9 @@ MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      "../models/tpu/ohmnilabs_features_extractor_quant_postprocess.tflite")
 EDGE_MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "../models/tpu/ohmnilabs_features_extractor_quant_postprocess_edgetpu.tflite")
+LOGS_DIR = './logs/'
 
-tf.debugging.set_log_device_placement(False)
+# tf.debugging.set_log_device_placement(False)
 
 
 class Extractor(keras.Model):
@@ -26,7 +28,10 @@ class Extractor(keras.Model):
         strategy = tf.distribute.MirroredStrategy()
         with strategy.scope():
             self.conv = keras.applications.MobileNetV2(
-                input_shape=(96, 96, 3), include_top=False, weights='imagenet')
+                input_shape=(IMAGE_SHAPE + (3,)),
+                include_top=False,
+                weights='imagenet'
+            )
             self.conv.trainable = False
             self.pool = keras.layers.GlobalAveragePooling2D()
             self.fc = keras.layers.Dense(512, activation='sigmoid')
@@ -43,11 +48,13 @@ class Tracker:
         self.batch_size = 256
         self.image_shape = IMAGE_SHAPE
 
+        # Setup model
         self.extractor = Extractor()
         self.optimizer = keras.optimizers.Adam()
-
+        # self.optimizer = keras.optimizers.RMSprop(learning_rate=0.0001)
         self.loss_metric = keras.metrics.Mean(name='train_loss')
 
+        # Setup checkpoints
         self.checkpoint_dir = CHECKPOINT
         self.checkpoint_prefix = os.path.join(self.checkpoint_dir, 'ckpt')
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
@@ -55,11 +62,16 @@ class Tracker:
         self.checkpoint.restore(
             tf.train.latest_checkpoint(self.checkpoint_dir))
 
+        # Setup logs (tensorboard)
+        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        train_log_dir = LOGS_DIR + 'triplets/' + current_time + '/train'
+        self.train_log_writer = tf.summary.create_file_writer(train_log_dir)
+
     @tf.function
     def loss_function(self, afs, pfs, nfs):
         lloss = tf.sqrt(tf.reduce_sum(tf.square(afs - pfs), 1))
         rloss = tf.sqrt(tf.reduce_sum(tf.square(afs - nfs), 1))
-        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 20, 0))
+        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 13., 0.))
         return loss
 
     def formaliza_data(self, obj, frame):
@@ -95,6 +107,8 @@ class Tracker:
     def train(self, dataset, epochs=10):
         for epoch in range(epochs):
             start = time.time()
+
+            # Training
             steps_per_epoch = 0
             iterator = iter(dataset)
             try:
@@ -108,12 +122,14 @@ class Tracker:
                     nis = tf.reshape(
                         nis, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
                     self.train_step(ais, pis, nis)
-
+                    # Logs
+                    with self.train_log_writer.as_default():
+                        tf.summary.scalar(
+                            'loss', self.loss_metric.result(), step=steps_per_epoch)
                     steps_per_epoch += 1
-
             except StopIteration:
                 pass
-
+            # Checkpoint
             self.checkpoint.save(file_prefix=self.checkpoint_prefix)
 
             end = time.time()
@@ -123,6 +139,7 @@ class Tracker:
             print('\tTime taken for 1 epoch {:.4f} sec\n'.format(end - start))
 
             self.loss_metric.reset_states()
+            break
 
     def predict(self, imgs, bboxes):
         estart = time.time()

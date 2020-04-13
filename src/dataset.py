@@ -57,8 +57,7 @@ class Dataset:
     def prepare_for_training(self, ds):
         # ds = ds.cache()
         ds = ds.shuffle(1024)
-        ds = ds.repeat()
-        ds = ds.batch(self.batch_size)
+        ds = ds.batch(self.batch_size, drop_remainder=True)
         # ds = ds.prefetch(buffer_size=AUTOTUNE)
         return ds
 
