@@ -115,7 +115,7 @@ class Factory():
             delimiter=",",
             dtype='int,int,int,int,int,int,int,float,float'
         )
-        objs = filter(lambda line: line[6] == 1 and line[8] >= 0.5, dataset)
+        objs = filter(lambda line: line[6] == 1 and line[8] >= 0.7, dataset)
 
         width = self.metadata[0]
         height = self.metadata[1]

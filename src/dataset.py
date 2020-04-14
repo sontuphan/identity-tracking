@@ -26,7 +26,7 @@ class Dataset:
         img = cv.imread(file_path)
         img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
         img = cv.resize(img, self.image_shape)
-        return img/255
+        return img/127.5 - 1
 
     def read_img(self, triplet_dir):
         anchor_dir = str(triplet_dir.joinpath('anchor.jpg'))
@@ -56,7 +56,7 @@ class Dataset:
 
     def prepare_for_training(self, ds):
         # ds = ds.cache()
-        ds = ds.shuffle(1024)
+        ds = ds.shuffle(512)
         ds = ds.batch(self.batch_size, drop_remainder=True)
         # ds = ds.prefetch(buffer_size=AUTOTUNE)
         return ds

@@ -1,7 +1,7 @@
 import os
 import tflite_runtime.interpreter as tflite
 
-from utils.bbox import Object, BBox
+from utils import image
 
 EDGETPU_SHARED_LIB = 'libedgetpu.so.1'
 LABELS = os.path.join(os.path.dirname(
@@ -33,6 +33,7 @@ class HumanDetection:
             return {int(index): label.strip() for index, label in pairs}
 
     def predict(self, img):
+        img = image.resize(img, self.input_shape)
         self.interpreter.allocate_tensors()
         self.interpreter.set_tensor(self.input_details[0]['index'], [img])
         self.interpreter.invoke()
@@ -46,10 +47,6 @@ class HumanDetection:
 
         def make(i):
             ymin, xmin, ymax, xmax = boxes[i]
-            return [0, int(class_ids[i]), 0, scores[i],
-                    int(xmin * self.input_shape[0]),
-                    int(ymin * self.input_shape[1]),
-                    int(xmax * self.input_shape[0]),
-                    int(ymax * self.input_shape[1])]
+            return [0, int(class_ids[i]), 0, scores[i], xmin, ymin, xmax, ymax]
 
         return [make(i) for i in range(count) if (scores[i] >= self.confidence and int(class_ids[i]) == 0)]

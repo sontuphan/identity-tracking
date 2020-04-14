@@ -9,7 +9,7 @@ import tflite_runtime.interpreter as tflite
 import numpy as np
 import cv2 as cv
 
-IMAGE_SHAPE = (96, 96)
+IMAGE_SHAPE = (160, 160)
 EDGETPU_SHARED_LIB = 'libedgetpu.so.1'
 CHECKPOINT = './models/idtr/training_checkpoints_' + \
     str(IMAGE_SHAPE[0]) + '_trilet'
@@ -20,6 +20,35 @@ EDGE_MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 LOGS_DIR = './logs/'
 
 # tf.debugging.set_log_device_placement(False)
+
+
+def formaliza_data(obj, frame):
+    (height, width, _) = frame.shape
+
+    xmin = int(obj[-4]*width)
+    xmin = 0 if xmin < 0 else xmin
+    xmin = width if xmin > width else xmin
+
+    ymin = int(obj[-3]*height)
+    ymin = 0 if ymin < 0 else ymin
+    ymin = height if ymin > height else ymin
+
+    xmax = int(obj[-2]*width)
+    xmax = 0 if xmax < 0 else xmax
+    xmax = width if xmax > width else xmax
+
+    ymax = int(obj[-1]*height)
+    ymax = 0 if ymax < 0 else ymax
+    ymax = height if ymax > height else ymax
+
+    box = [xmin, ymin, xmax, ymax]
+    if xmin >= xmax or ymin >= ymax:
+        return box, np.zeros(IMAGE_SHAPE)
+
+    cropped_obj_img = frame[ymin:ymax, xmin:xmax]
+    resized_obj_img = cv.resize(cropped_obj_img, IMAGE_SHAPE)
+    obj_img = resized_obj_img/127.5 - 1
+    return obj_img, box
 
 
 class Extractor(keras.Model):
@@ -34,7 +63,7 @@ class Extractor(keras.Model):
             )
             self.conv.trainable = False
             self.pool = keras.layers.GlobalAveragePooling2D()
-            self.fc = keras.layers.Dense(512, activation='sigmoid')
+            self.fc = keras.layers.Dense(512)
 
     def call(self, imgs):
         conv_output = self.conv(imgs)
@@ -45,13 +74,13 @@ class Extractor(keras.Model):
 
 class Tracker:
     def __init__(self):
-        self.batch_size = 256
+        self.batch_size = 128
         self.image_shape = IMAGE_SHAPE
 
         # Setup model
         self.extractor = Extractor()
-        self.optimizer = keras.optimizers.Adam()
-        # self.optimizer = keras.optimizers.RMSprop(learning_rate=0.0001)
+        # self.optimizer = keras.optimizers.Adam()
+        self.optimizer = keras.optimizers.RMSprop(learning_rate=0.0001)
         self.loss_metric = keras.metrics.Mean(name='train_loss')
 
         # Setup checkpoints
@@ -71,23 +100,8 @@ class Tracker:
     def loss_function(self, afs, pfs, nfs):
         lloss = tf.sqrt(tf.reduce_sum(tf.square(afs - pfs), 1))
         rloss = tf.sqrt(tf.reduce_sum(tf.square(afs - nfs), 1))
-        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 13., 0.))
+        loss = tf.reduce_mean(tf.maximum(lloss - rloss + 30., 0.))
         return loss
-
-    def formaliza_data(self, obj, frame):
-        xmin = 0 if obj.bbox.xmin < 0 else obj.bbox.xmin
-        xmax = 300 if obj.bbox.xmax > 300 else obj.bbox.xmax
-        ymin = 0 if obj.bbox.ymin < 0 else obj.bbox.ymin
-        ymax = 300 if obj.bbox.ymax > 300 else obj.bbox.ymax
-        box = [xmin/300, ymin/300, xmax/300, ymax/300]
-        if xmin == xmax:
-            return np.zeros(self.image_shape)
-        if ymin == ymax:
-            return np.zeros(self.image_shape)
-        cropped_obj_img = frame[ymin:ymax, xmin:xmax]
-        resized_obj_img = cv.resize(cropped_obj_img, self.image_shape)
-        obj_img = resized_obj_img/255.0
-        return box, obj_img
 
     @tf.function
     def train_step(self, ais, pis, nis):
@@ -113,19 +127,22 @@ class Tracker:
             iterator = iter(dataset)
             try:
                 while True:
-                    imgs, bboxes = next(iterator)
+                    imgs, _ = next(iterator)
                     ais, pis, nis = tf.split(imgs, [1, 1, 1], axis=1)
                     ais = tf.reshape(
-                        ais, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
+                        ais, ((self.batch_size,) + self.image_shape + (3,)))
                     pis = tf.reshape(
-                        pis, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
+                        pis, ((self.batch_size,) + self.image_shape + (3,)))
                     nis = tf.reshape(
-                        nis, [self.batch_size, self.image_shape[0], self.image_shape[1], 3])
+                        nis, ((self.batch_size,) + self.image_shape + (3,)))
                     self.train_step(ais, pis, nis)
                     # Logs
                     with self.train_log_writer.as_default():
                         tf.summary.scalar(
-                            'loss', self.loss_metric.result(), step=steps_per_epoch)
+                            'epoch'+str(epoch),
+                            self.loss_metric.result(),
+                            step=steps_per_epoch
+                        )
                     steps_per_epoch += 1
             except StopIteration:
                 pass
@@ -139,31 +156,30 @@ class Tracker:
             print('\tTime taken for 1 epoch {:.4f} sec\n'.format(end - start))
 
             self.loss_metric.reset_states()
-            break
 
-    def predict(self, imgs, bboxes):
+    def extract_features(self, imgs):
         estart = time.time()
-        imgs = np.array(imgs)
-        bboxes = np.array(bboxes)
         features = self.extractor(imgs)
-        vectors = np.concatenate((features, bboxes), axis=1)
         eend = time.time()
         print('Extractor estimated time {:.4f}'.format(eend-estart))
-        return vectors
+        return features
 
     def convert(self, pipeline):
         model = self.extractor
 
         # Define input shapes
-        pseudo_imgs = tf.keras.Input(shape=(96, 96, 3))
+        pseudo_imgs = tf.keras.Input(shape=(self.image_shape+(3,)))
         model(pseudo_imgs)
         model.summary()
 
         def representative_dataset_gen():
-            for tensor in pipeline.take(100):
+            for tensor in pipeline.take(1):
                 imgs, _ = tensor
-                img, _, _ = tf.split(imgs, [1, 1, 1], axis=0)
-                yield [img]
+                imgs, _, _ = tf.split(imgs, [1, 1, 1], axis=1)
+                imgs = tf.reshape(
+                    imgs, ((self.batch_size,) + self.image_shape + (3,)))
+                img = np.array([imgs[0]])
+                yield [img]  # Shape (1,1,height,width,channel)
 
         converter = lite.TFLiteConverter.from_keras_model(model)
         converter.optimizations = [lite.Optimize.DEFAULT]
@@ -179,7 +195,6 @@ class Tracker:
 
 class Inference:
     def __init__(self):
-        self.frame_shape = (300, 300)
         self.image_shape = IMAGE_SHAPE
         self.interpreter = tflite.Interpreter(
             model_path=EDGE_MODEL,
@@ -189,30 +204,14 @@ class Inference:
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
         self.confidence = 0.7
-        self.threshold = 7
-        self.tradeoff = 10  # Between encoding distance and bbox distance
+        self.threshold = 60
+        self.tradeoff = 0.5  # Between encoding distance and bbox distance
         self.prev_encoding = None
         self.prev_bbox = None
 
     def reset(self):
         self.prev_encoding = None
         self.prev_bbox = None
-
-    def formaliza_data(self, obj, frame):
-        xmin = 0 if obj.bbox.xmin < 0 else obj.bbox.xmin
-        xmax = self.frame_shape[0] if obj.bbox.xmax > self.frame_shape[0] else obj.bbox.xmax
-        ymin = 0 if obj.bbox.ymin < 0 else obj.bbox.ymin
-        ymax = self.frame_shape[1] if obj.bbox.ymax > self.frame_shape[1] else obj.bbox.ymax
-        box = np.array([xmin/self.frame_shape[0], ymin/self.frame_shape[1],
-                        xmax/self.frame_shape[0], ymax/self.frame_shape[1]])
-        if xmin == xmax:
-            return np.zeros(self.image_shape)
-        if ymin == ymax:
-            return np.zeros(self.image_shape)
-        cropped_obj_img = frame[ymin:ymax, xmin:xmax]
-        resized_obj_img = cv.resize(cropped_obj_img, self.image_shape)
-        obj_img = resized_obj_img/255.0
-        return box, obj_img
 
     def confidence_level(self, distances):
         deltas = (self.threshold - distances)/self.threshold
@@ -233,44 +232,42 @@ class Inference:
         feature = self.interpreter.get_tensor(self.output_details[0]['index'])
         return np.array(feature[0])
 
-    def predict(self, imgs, bboxes, init=False):
-        if init:
-            if len(imgs) != 1 or len(bboxes) != 1:
-                raise ValueError('You must initialize one object only.')
-            encoding = self.infer(imgs[0])
-            self.prev_encoding = encoding
-            self.prev_bbox = bboxes[0]
-            return np.array([.0]), 0
+    def set_anchor(self, img, bbox):
+        encoding = self.infer(img)
+        self.prev_encoding = encoding
+        self.prev_bbox = bbox
+        return np.array([.0]), 0
+
+    def predict(self, imgs, bboxes):
+        estart = time.time()
+        encodings = []
+        features = np.array([])
+        positions = np.array([])
+
+        for index, bbox in enumerate(bboxes):
+            # Appreance
+            img = imgs[index]
+            encoding = self.infer(img)
+            encodings.append(encoding)
+            feature = np.linalg.norm(self.prev_encoding - encoding)
+            features = np.append(features, feature)
+            # Position
+            position = np.linalg.norm(
+                np.array(self.prev_bbox) - np.array(bbox)) * self.tradeoff
+            positions = np.append(positions, position)
+
+        distances = features + positions
+        confidences = self.confidence_level(distances)
+        argmax = np.argmax(confidences)
+
+        eend = time.time()
+        print('Features:', features)
+        print('Positions:', positions)
+        print('Distances:', distances)
+        print('Extractor estimated time {:.4f}'.format(eend-estart))
+        if confidences[argmax] > self.confidence:
+            self.prev_encoding = encodings[argmax]
+            self.prev_bbox = bboxes[argmax]
+            return confidences, argmax
         else:
-            estart = time.time()
-            encodings = []
-            features = np.array([])
-            positions = np.array([])
-
-            for index, bbox in enumerate(bboxes):
-                # Appreance
-                img = imgs[index]
-                encoding = self.infer(img)
-                encodings.append(encoding)
-                feature = np.linalg.norm(self.prev_encoding - encoding)
-                features = np.append(features, feature)
-                # Position
-                position = np.linalg.norm(
-                    self.prev_bbox - bbox) * self.tradeoff
-                positions = np.append(positions, position)
-
-            distances = features + positions
-            confidences = self.confidence_level(distances)
-            argmax = np.argmax(confidences)
-
-            eend = time.time()
-            print('Features:', features)
-            print('Positions:', positions)
-            print('Distances:', distances)
-            print('Extractor estimated time {:.4f}'.format(eend-estart))
-            if confidences[argmax] > self.confidence:
-                self.prev_encoding = encodings[argmax]
-                self.prev_bbox = bboxes[argmax]
-                return confidences, argmax
-            else:
-                return confidences, None
+            return confidences, None
