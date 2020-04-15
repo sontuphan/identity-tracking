@@ -19,8 +19,6 @@ EDGE_MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "../models/tpu/ohmnilabs_features_extractor_quant_postprocess_edgetpu.tflite")
 LOGS_DIR = './logs/'
 
-# tf.debugging.set_log_device_placement(False)
-
 
 def formaliza_data(obj, frame):
     (height, width, _) = frame.shape
@@ -41,14 +39,16 @@ def formaliza_data(obj, frame):
     ymax = 0 if ymax < 0 else ymax
     ymax = height if ymax > height else ymax
 
-    box = [xmin, ymin, xmax, ymax]
+    box = np.array([xmin, ymin, xmax, ymax], dtype=np.int32)
+    scaled_box = np.array(
+        [xmin/width, ymin/height, xmax/width, ymax/height], dtype=np.float32)
     if xmin >= xmax or ymin >= ymax:
-        return box, np.zeros(IMAGE_SHAPE)
+        return np.zeros(IMAGE_SHAPE), box, scaled_box
 
     cropped_obj_img = frame[ymin:ymax, xmin:xmax]
     resized_obj_img = cv.resize(cropped_obj_img, IMAGE_SHAPE)
-    obj_img = resized_obj_img/127.5 - 1
-    return obj_img, box
+    obj_img = np.array(resized_obj_img/127.5 - 1, dtype=np.float32)
+    return obj_img, box, scaled_box
 
 
 class Extractor(keras.Model):
@@ -179,7 +179,7 @@ class Tracker:
                 imgs = tf.reshape(
                     imgs, ((self.batch_size,) + self.image_shape + (3,)))
                 img = np.array([imgs[0]])
-                yield [img]  # Shape (1,1,height,width,channel)
+                yield [img]  # Shape (1, 1, height, width, channel)
 
         converter = lite.TFLiteConverter.from_keras_model(model)
         converter.optimizations = [lite.Optimize.DEFAULT]
@@ -205,7 +205,7 @@ class Inference:
         self.output_details = self.interpreter.get_output_details()
         self.confidence = 0.7
         self.threshold = 60
-        self.tradeoff = 0.5  # Between encoding distance and bbox distance
+        self.tradeoff = 0.3  # Between encoding differential and bbox differential
         self.prev_encoding = None
         self.prev_bbox = None
 
@@ -213,7 +213,10 @@ class Inference:
         self.prev_encoding = None
         self.prev_bbox = None
 
-    def confidence_level(self, distances):
+    def __area(self, box):
+        return max(0, box[3]-box[1]+1)*max(0, box[2]-box[0]+1)
+
+    def __confidence_level(self, distances):
         deltas = (self.threshold - distances)/self.threshold
         zeros = np.zeros(deltas.shape, dtype=np.float32)
         logits = np.maximum(deltas, zeros)
@@ -224,13 +227,19 @@ class Inference:
             confidences = logits/logits_sum
             return confidences
 
+    def iou(self, anchor_box, predicted_box):
+        inter_box = np.maximum(anchor_box, predicted_box)
+        inter_area = self.__area(inter_box)
+        anchor_area = self.__area(anchor_box)
+        predicted_area = self.__area(predicted_box)
+        return inter_area/float(anchor_area+predicted_area-inter_area)
+
     def infer(self, img):
-        img = np.array(img, dtype=np.float32)
         self.interpreter.allocate_tensors()
         self.interpreter.set_tensor(self.input_details[0]['index'], [img])
         self.interpreter.invoke()
         feature = self.interpreter.get_tensor(self.output_details[0]['index'])
-        return np.array(feature[0])
+        return np.array(feature[0], dtype=np.float32)
 
     def set_anchor(self, img, bbox):
         encoding = self.infer(img)
@@ -240,29 +249,25 @@ class Inference:
 
     def predict(self, imgs, bboxes):
         estart = time.time()
-        encodings = []
-        features = np.array([])
-        positions = np.array([])
 
-        for index, bbox in enumerate(bboxes):
-            # Appreance
-            img = imgs[index]
-            encoding = self.infer(img)
-            encodings.append(encoding)
-            feature = np.linalg.norm(self.prev_encoding - encoding)
-            features = np.append(features, feature)
-            # Position
-            position = np.linalg.norm(
-                np.array(self.prev_bbox) - np.array(bbox)) * self.tradeoff
-            positions = np.append(positions, position)
+        # for index, box in bboxes:
+        #     iou = self.iou(self.prev_bbox, box)
+        #     if iou > 0.5:
+        #         img = imgs[index]
+        #         encoding = self.infer(img)
 
-        distances = features + positions
-        confidences = self.confidence_level(distances)
+        encodings = list(map(self.infer, imgs))
+        encodings_differential = np.linalg.norm(
+            self.prev_encoding - encodings, axis=1)
+        positions_differential = np.linalg.norm(
+            self.prev_bbox - bboxes, axis=1)
+        distances = encodings_differential + positions_differential*self.tradeoff
+        confidences = self.__confidence_level(distances)
         argmax = np.argmax(confidences)
 
         eend = time.time()
-        print('Features:', features)
-        print('Positions:', positions)
+        print('Features:', encodings_differential)
+        print('Positions:', positions_differential)
         print('Distances:', distances)
         print('Extractor estimated time {:.4f}'.format(eend-estart))
         if confidences[argmax] > self.confidence:

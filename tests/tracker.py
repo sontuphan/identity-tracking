@@ -90,13 +90,13 @@ def predict():
             obj_id = 0
             if len(objs) <= obj_id:
                 continue
-            obj_img, _ = formaliza_data(objs[obj_id], img)
+            obj_img, _, _ = formaliza_data(objs[obj_id], img)
             obj_imgs = np.array([obj_img])
             prev_vector = tracker.extract_features(obj_imgs)
         else:
             obj_imgs_batch = []
             for obj in objs:
-                obj_img, _ = formaliza_data(obj, img)
+                obj_img, _, _ = formaliza_data(obj, img)
                 obj_imgs_batch.append(obj_img)
             obj_imgs_batch = np.array(obj_imgs_batch)
 
@@ -119,7 +119,7 @@ def predict():
                     argmin = index
             print("Distances:", distances)
             print("Min distance:", distancemin)
-            if distancemin < 35:
+            if distancemin < 50:
                 prev_vector = vectormin
                 obj = objs[argmin]
                 frame = image.draw_objs(frame, [obj])
@@ -168,14 +168,14 @@ def infer():
             obj_id = 0
             if len(objs) <= obj_id:
                 continue
-            obj_img, box = formaliza_data(objs[obj_id], img)
+            obj_img, box, _ = formaliza_data(objs[obj_id], img)
             inference.set_anchor(obj_img, box)
         else:
             bboxes_batch = []
             obj_imgs_batch = []
 
             for obj in objs:
-                obj_img, box = formaliza_data(obj, img)
+                obj_img, box, _ = formaliza_data(obj, img)
                 bboxes_batch.append(box)
                 obj_imgs_batch.append(obj_img)
 
@@ -185,13 +185,14 @@ def infer():
             if argmax is not None:
                 box = bboxes_batch[argmax]
                 history = image.crop(frame, box)
-                frame = image.draw_boxes(frame, [box])
+                frame = image.draw_box(frame, box)
 
         # Test human detection
         # frame = image.draw_objs(frame, objs)
 
         cv.imshow('Video', frame)
         if history is not None:
+            history = image.resize(history, (100, 100))
             cv.imshow('Tracking object', history)
             cv.moveWindow('Tracking object', 500, 500)
         if cv.waitKey(10) & 0xFF == ord('q'):

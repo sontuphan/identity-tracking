@@ -31,15 +31,15 @@ def test_with_video(video_id):
 
     while(cap.isOpened()):
         ret, frame = cap.read()
-        if ret == True:
-            img = image.resize(frame, hd.input_shape)
-            objs = hd.predict(img)
-            img = image.draw_objs(img, objs)
+        if ret != True:
+            break
 
-            cv.imshow('Video', img)
-            if cv.waitKey(10) & 0xFF == ord('q'):
-                break
-        else:
+        img = image.resize(frame, hd.input_shape)
+        objs = hd.predict(img)
+        frame = image.draw_objs(frame, objs)
+
+        cv.imshow('Video', frame)
+        if cv.waitKey(10) & 0xFF == ord('q'):
             break
 
     cap.release()

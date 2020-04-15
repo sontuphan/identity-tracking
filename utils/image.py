@@ -50,8 +50,8 @@ def draw_objs(img, objs):
     return img
 
 
-def draw_boxes(img, boxes):
-    for index, box in enumerate(boxes):
-        color = colorize(index)
-        img = cv.rectangle(img, (box[0], box[1]), (box[2], box[3]), color, 1)
+def draw_box(img, box):
+    color = (0, 0, 255)
+    [xmin, ymin, xmax, ymax] = box
+    img = cv.rectangle(img, (xmin, ymin), (xmax, ymax), color, 1)
     return img
