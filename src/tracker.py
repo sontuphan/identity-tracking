@@ -40,15 +40,13 @@ def formaliza_data(obj, frame):
     ymax = height if ymax > height else ymax
 
     box = np.array([xmin, ymin, xmax, ymax], dtype=np.int32)
-    scaled_box = np.array(
-        [xmin/width, ymin/height, xmax/width, ymax/height], dtype=np.float32)
     if xmin >= xmax or ymin >= ymax:
-        return np.zeros(IMAGE_SHAPE), box, scaled_box
+        return np.zeros(IMAGE_SHAPE), box
 
     cropped_obj_img = frame[ymin:ymax, xmin:xmax]
     resized_obj_img = cv.resize(cropped_obj_img, IMAGE_SHAPE)
     obj_img = np.array(resized_obj_img/127.5 - 1, dtype=np.float32)
-    return obj_img, box, scaled_box
+    return obj_img, box
 
 
 class Extractor(keras.Model):
