@@ -204,8 +204,7 @@ class Inference:
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
         self.confidence = 0.7
-        self.threshold = 60
-        self.tradeoff = 0.3  # Between encoding differential and bbox differential
+        self.threshold = 40
         self.prev_encoding = None
         self.prev_bbox = None
 
@@ -217,18 +216,24 @@ class Inference:
         return max(0, box[3]-box[1]+1)*max(0, box[2]-box[0]+1)
 
     def __confidence_level(self, distances):
+        if len(distances) == 0:
+            return np.array([]), None
         deltas = (self.threshold - distances)/self.threshold
         zeros = np.zeros(deltas.shape, dtype=np.float32)
         logits = np.maximum(deltas, zeros)
         logits_sum = np.sum(logits)
         if logits_sum == 0:
-            return zeros
+            return zeros, None
         else:
             confidences = logits/logits_sum
-            return confidences
+            return confidences, np.argmax(confidences)
 
     def iou(self, anchor_box, predicted_box):
-        inter_box = np.maximum(anchor_box, predicted_box)
+        xmin = max(anchor_box[0], predicted_box[0])
+        ymin = max(anchor_box[1], predicted_box[1])
+        xmax = min(anchor_box[2], predicted_box[2])
+        ymax = min(anchor_box[3], predicted_box[3])
+        inter_box = np.array([xmin, ymin, xmax, ymax])
         inter_area = self.__area(inter_box)
         anchor_area = self.__area(anchor_box)
         predicted_area = self.__area(predicted_box)
@@ -250,29 +255,31 @@ class Inference:
     def predict(self, imgs, bboxes):
         estart = time.time()
 
-        # for index, box in bboxes:
-        #     iou = self.iou(self.prev_bbox, box)
-        #     if iou > 0.5:
-        #         img = imgs[index]
-        #         encoding = self.infer(img)
+        differentials = np.array([])
+        indice = []
+        encodings = []
+        ious = []
+        for index, box in enumerate(bboxes):
+            iou = self.iou(self.prev_bbox, box)
+            ious.append(iou)
+            if iou > 0.5:
+                img = imgs[index]
+                encoding = self.infer(img)
+                differential = np.linalg.norm(
+                    self.prev_encoding - encoding)
 
-        encodings = list(map(self.infer, imgs))
-        encodings_differential = np.linalg.norm(
-            self.prev_encoding - encodings, axis=1)
-        positions_differential = np.linalg.norm(
-            self.prev_bbox - bboxes, axis=1)
-        distances = encodings_differential + positions_differential*self.tradeoff
-        confidences = self.__confidence_level(distances)
-        argmax = np.argmax(confidences)
+                differentials = np.append(differentials, differential)
+                indice.append(index)
+                encodings.append(encoding)
+
+        print('Differentials', differentials)
+        print('IOU', ious)
+        confidences, argmax = self.__confidence_level(differentials)
+        index = indice[argmax] if argmax is not None else None
 
         eend = time.time()
-        print('Features:', encodings_differential)
-        print('Positions:', positions_differential)
-        print('Distances:', distances)
         print('Extractor estimated time {:.4f}'.format(eend-estart))
-        if confidences[argmax] > self.confidence:
+        if argmax is not None and confidences[argmax] > self.confidence:
             self.prev_encoding = encodings[argmax]
-            self.prev_bbox = bboxes[argmax]
-            return confidences, argmax
-        else:
-            return confidences, None
+            self.prev_bbox = bboxes[index]
+        return confidences, index
