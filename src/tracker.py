@@ -204,7 +204,7 @@ class Inference:
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
         self.confidence = 0.7
-        self.threshold = 40
+        self.threshold = 35
         self.prev_encoding = None
         self.prev_bbox = None
 
@@ -271,6 +271,8 @@ class Inference:
                 differentials = np.append(differentials, differential)
                 indice.append(index)
                 encodings.append(encoding)
+
+        print('Differentials:', differentials)
 
         confidences, argmax = self.__confidence_level(differentials)
         index = indice[argmax] if argmax is not None else None

@@ -1,10 +1,7 @@
 import sys
 
-import tensorflow as tf
-from tests import factory, extractor, dataset
-from tests import humandetection, tracker
+from tests import factory, dataset, humandetection, tracker
 
-tf.get_logger().setLevel('ERROR')
 
 if __name__ == "__main__":
     if sys.argv[1] == "--test":
@@ -36,16 +33,6 @@ if __name__ == "__main__":
                 tracker.predict()
             if sys.argv[3] == "infer":
                 tracker.infer()
-
-        elif sys.argv[2] == "extractor":
-            if sys.argv[3] == "test_96":
-                extractor.test_96()
-            if sys.argv[3] == "test_224":
-                extractor.test_224()
-            if sys.argv[3] == "test_inception":
-                extractor.test_inception()
-            if sys.argv[3] == "test_siamnet":
-                extractor.test_siamnet()
 
         elif sys.argv[2] == "dataset":
             if sys.argv[3] == "show_info":
