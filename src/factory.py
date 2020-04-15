@@ -3,65 +3,73 @@ import random
 import configparser
 import cv2 as cv
 import numpy as np
-import tensorflow as tf
+import csv
 
-from utils.bbox import BBox, Object
+from utils import image
 
-FRAME_SHAPE = (300, 300)
+# object =  [id, label, frame, score, xmin, ymin, xmax, ymax]
 
 
 class Factory():
-    def __init__(self, data_name='MOT17-05', batch_size=64,
-                 img_shape=(96, 96)):
-        self.data_dir = 'data/train/'
+    def __init__(self, data_name):
+        self.data_dir = 'data/raw/'
         self.data_name = data_name
-        self.batch_size = batch_size
-        self.img_shape = img_shape
-        self.frame_shape = FRAME_SHAPE
+        self.out_dir = 'data/train/' + self.data_name + '/'
 
         config = configparser.ConfigParser()
         config.read(self.data_dir + self.data_name + '/seqinfo.ini')
         self.metadata = (int(config['Sequence']['imWidth']),
                          int(config['Sequence']['imHeight']))
 
-    def input_pipeline(self):
-        pipeline = tf.data.Dataset.from_generator(
-            self.generator, args=[],
-            output_types=(tf.float32, tf.float32),
-            output_shapes=(((3,)+self.img_shape+(3,)), (3, 4)), )
-        return pipeline
+    def write_image(self, dataset):
+        iterator = iter(dataset)
+        counter = 0
+        try:
+            while True:
+                counter += 1
+                imgs, bboxes = next(iterator)
+                out_dir = self.out_dir+str(counter)
+                os.makedirs(out_dir, exist_ok=True)
+                csv_file = open(out_dir+'/box.csv', 'w+')
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(['xmin', 'ymin', 'xmax', 'ymax',
+                                     'frame_width', 'frame_height'])
+
+                for index, img in enumerate(imgs):
+                    box = bboxes[index][:4]
+                    box = [box[0], box[1], box[2], box[3],
+                           self.metadata[0], self.metadata[1]]
+                    csv_writer.writerow(box)
+                    name = None
+                    if index == 0:
+                        name = 'anchor.jpg'
+                    if index == 1:
+                        name = 'positive.jpg'
+                    if index == 2:
+                        name = 'negative.jpg'
+                    out_img = os.path.abspath(out_dir+'/'+name)
+                    cv.imwrite(out_img, img)
+        except StopIteration:
+            pass
 
     def generator(self):
         frames = self.gen_frames()
         triplets = self.gen_triplets(frames)
 
         for triplet in triplets:
-            imgs, bboxes = self.normalize_data(triplet)
-            # Filter too small image
-            bbox = bboxes[0]
-            area = (bbox[2]-bbox[0])*(bbox[3]-bbox[1])
-            if area < 0.003:
-                continue
+            imgs, bboxes = self.get_obj_img(triplet)
             yield imgs, bboxes
 
-    def normalize_data(self, objs):
+    def get_obj_img(self, objs):
         img_tensor = []
         bbox_tensor = []
         for obj in objs:
-            frame = self.load_frame(obj[2])
-            obj = self.convert_array_to_object(obj)
-            (xmin, ymin, xmax, ymax) = obj.bbox
-
-            cropped_img = frame[ymin:ymax, xmin:xmax]
-            resized_img = cv.resize(cropped_img, self.img_shape)
-            img = resized_img/255.0
+            fram_id = obj[2]
+            frame = self.load_frame(fram_id)
+            box = [obj[4], obj[5], obj[6], obj[7]]
+            img = image.crop(frame, box)
             img_tensor.append(img)
-
-            bbox = [xmin/self.frame_shape[0],
-                    ymin/self.frame_shape[1],
-                    xmax/self.frame_shape[0],
-                    ymax/self.frame_shape[1]]
-            bbox_tensor.append(bbox)
+            bbox_tensor.append(box)
 
         return img_tensor, bbox_tensor
 
@@ -73,20 +81,7 @@ class Factory():
         data_dir = self.data_dir + self.data_name + "/img1/"+name
         data_dir = os.path.abspath(data_dir)
         frame = cv.imread(data_dir)
-        if frame is not None:
-            return cv.resize(frame, self.frame_shape)
-        else:
-            return None
-
-    def convert_array_to_object(self, array):
-        return Object(
-            id=array[0],
-            label=array[1],
-            frame=array[2],
-            score=array[3],
-            bbox=BBox(xmin=array[4], ymin=array[5],
-                      xmax=array[6], ymax=array[7])
-        )
+        return frame
 
     def gen_triplets(self, frames):
         data = []
@@ -120,21 +115,21 @@ class Factory():
             delimiter=",",
             dtype='int,int,int,int,int,int,int,float,float'
         )
-        objs = filter(lambda line: line[6] == 1 and line[8] >= 0.2, dataset)
+        objs = filter(lambda line: line[6] == 1 and line[8] >= 0.7, dataset)
 
-        width_scale = self.metadata[0]/self.frame_shape[0]
-        height_scale = self.metadata[1]/self.frame_shape[1]
+        width = self.metadata[0]
+        height = self.metadata[1]
         objs = map(lambda line: [
             int(line[1]),  # id
             int(line[1]),  # label
             int(line[0]),  # frame
             float(line[8]),  # score
-            int((line[2] if line[2] > 0 else 0)/width_scale),  # xmin
-            int((line[3] if line[3] > 0 else 0)/height_scale),  # ymin
-            int((line[2]+line[4])/width_scale if (line[2]+line[4]) / \
-                width_scale < self.frame_shape[0] else self.frame_shape[0]-1),  # xmax
-            int((line[3]+line[5])/height_scale if (line[3]+line[5]) / \
-                height_scale < self.frame_shape[1] else self.frame_shape[1]-1)  # ymax
+            int(line[2] if line[2] > 0 else 0),  # xmin
+            int(line[3] if line[3] > 0 else 0),  # ymin
+            int((line[2]+line[4]) if (line[2]+line[4])
+                < width else width-1),  # xmax
+            int((line[3]+line[5]) if (line[3]+line[5])
+                < height else height-1)  # ymax
         ], objs)
 
         objs = list(objs)

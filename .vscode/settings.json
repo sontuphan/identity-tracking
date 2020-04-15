@@ -1,7 +1,8 @@
 {
-    "python.linting.pylintEnabled": true,
-    "python.linting.enabled": true,
-    "python.autoComplete.extraPaths": [
-        "/opt/ros/melodic/lib/python2.7/dist-packages"
-    ]
+	"python.linting.pylintEnabled": true,
+	"python.linting.enabled": true,
+	"editor.tabSize": 4,
+	"files.watcherExclude": {
+		"**/data": true,
+	},
 }

@@ -5,6 +5,7 @@ import tensorflow_hub as hub
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import cv2 as cv
 
 from src.factory import Factory
 from utils import image
@@ -53,19 +54,38 @@ class ExtractorInception(tf.keras.Model):
         return self.model(x)
 
 
+class ExtractorSiamnet(tf.keras.Model):
+    def __init__(self):
+        super(ExtractorSiamnet, self).__init__()
+        self.conv = tf.keras.applications.MobileNetV2(
+            input_shape=(96, 96, 3), include_top=False, weights='imagenet')
+        self.conv.trainable = False
+        self.pool = tf.keras.layers.GlobalMaxPool2D()
+        self.fc = tf.keras.layers.Dense(256, activation='relu')
+
+    def call(self, imgs):
+        print('IMGS:', imgs.shape)
+        conv_output = self.conv(imgs)
+        print('CONV:', conv_output.shape)
+        pool_output = self.pool(conv_output)
+        print('POOL:', pool_output.shape)
+        fc_output = self.fc(pool_output)
+        print('FC:', fc_output.shape)
+        return fc_output
+
+
 def test_96():
-    IMAGE_SHAPE = (96, 96)
-    fac = Factory(img_shape=IMAGE_SHAPE)
-    dataset = fac.gen_frames()
+    factory = Factory('MOT17-05')
+    dataset = factory.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = fac.load_frame(obj[2])
-        obj = fac.convert_array_to_object(obj)
-        cropped_img = image.crop(img, obj)
-        resized_img = image.resize(cropped_img, IMAGE_SHAPE)
-        img_arr = image.convert_pil_to_cv(resized_img)
-        objs_img.append(img_arr)
+        obj_id = obj[2]
+        obj_box = [obj[4], obj[5], obj[6], obj[7]]
+        img = factory.load_frame(obj_id)
+        cropped_img = image.crop(img, obj_box)
+        resized_img = image.resize(cropped_img, (96, 96))
+        objs_img.append(resized_img)
 
     objs_img = np.array(objs_img)/255.0
     extractor = Extractor96()
@@ -78,18 +98,17 @@ def test_96():
 
 
 def test_224():
-    IMAGE_SHAPE = (224, 224)
-    fac = Factory(img_shape=IMAGE_SHAPE)
-    dataset = fac.gen_frames()
+    factory = Factory('MOT17-05')
+    dataset = factory.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = fac.load_frame(obj[2])
-        obj = fac.convert_array_to_object(obj)
-        cropped_img = image.crop(img, obj)
-        resized_img = image.resize(cropped_img, IMAGE_SHAPE)
-        img_arr = image.convert_pil_to_cv(resized_img)
-        objs_img.append(img_arr)
+        obj_id = obj[2]
+        obj_box = [obj[4], obj[5], obj[6], obj[7]]
+        img = factory.load_frame(obj_id)
+        cropped_img = image.crop(img, obj_box)
+        resized_img = image.resize(cropped_img, (224, 224))
+        objs_img.append(resized_img)
 
     objs_img = np.array(objs_img)/255.0
     extractor = Extractor224()
@@ -102,18 +121,17 @@ def test_224():
 
 
 def test_inception():
-    IMAGE_SHAPE = (299, 299)
-    fac = Factory(img_shape=IMAGE_SHAPE)
-    dataset = fac.gen_frames()
+    factory = Factory('MOT17-05')
+    dataset = factory.gen_frames()
     objs = dataset[0]
     objs_img = []
     for obj in objs:
-        img = fac.load_frame(obj[2])
-        obj = fac.convert_array_to_object(obj)
-        cropped_img = image.crop(img, obj)
-        resized_img = image.resize(cropped_img, IMAGE_SHAPE)
-        img_arr = image.convert_pil_to_cv(resized_img)
-        objs_img.append(img_arr)
+        obj_id = obj[2]
+        obj_box = [obj[4], obj[5], obj[6], obj[7]]
+        img = factory.load_frame(obj_id)
+        cropped_img = image.crop(img, obj_box)
+        resized_img = image.resize(cropped_img, (299, 299))
+        objs_img.append(resized_img)
 
     objs_img = np.array(objs_img)/255.0
     extractor = ExtractorInception()
@@ -124,3 +142,43 @@ def test_inception():
     data = data.transpose()
     plt.plot(data)
     plt.show()
+
+
+def test_siamnet():
+    extractor = ExtractorSiamnet()
+    factory = Factory('MOT17-05')
+    generator = iter(factory.generator())
+
+    while True:
+        imgs, bboxes = next(generator)
+        imgs_tensor = []
+        for img in imgs:
+            imgs_tensor.append(image.resize(img, (96, 96)))
+        imgs, bboxes = np.array(imgs_tensor)/255.0, np.array(bboxes)
+
+        (anchor, positive, negative) = tf.concat([extractor(imgs), bboxes], 1)
+        print('Anchor:', anchor.shape)
+        print('Positive:', positive.shape)
+        print('Negative:', negative.shape)
+
+        # lloss = tf.linalg.normalize(anchor - positive, ord='euclidean', axis=0)
+        lloss = tf.sqrt(tf.reduce_sum(tf.square(anchor - positive)))
+        print('d(a,p):', lloss)
+        # rloss = tf.linalg.normalize(anchor - negative, ord='euclidean', axis=0)
+        rloss = tf.sqrt(tf.reduce_sum(tf.square(anchor - negative)))
+        print('d(a,n):', rloss)
+        one = tf.constant(1, dtype=tf.float32)
+        proportion = (lloss + one)/(rloss + one)
+        print('The proportion:', proportion)
+
+        # Vizualization
+        tensor = None
+        for img in imgs:
+            tensor = img if tensor is None else np.concatenate(
+                (tensor, img), axis=1)
+        cv.imshow('Video', tensor)
+        if cv.waitKey(500) & 0xFF == ord('q'):
+                break
+        print("================================")
+
+    cv.destroyAllWindows()

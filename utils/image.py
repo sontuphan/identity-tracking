@@ -1,56 +1,57 @@
-from PIL import Image, ImageDraw
-import numpy as np
 import cv2 as cv
 import hashlib
 
 
-def convert_cv_to_pil(img):
-    img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
-    im_pil = Image.fromarray(img)
-    return im_pil
-
-
-def convert_pil_to_cv(im_pil):
-    img = np.asarray(im_pil)
-    img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
-    return img
-
-
 def resize(img, size):
-    return img.resize(size, Image.ANTIALIAS)
+    return cv.resize(img, size)
 
 
-def crop(img, obj):
-    return img.crop((obj.bbox.xmin, obj.bbox.ymin, obj.bbox.xmax, obj.bbox.ymax))
+def crop(img, box):
+    [xmin, ymin, xmax, ymax] = box
+    return img[ymin:ymax, xmin:xmax]
 
 
 def colorize(number):
-    color = hashlib.sha1(str(number).encode('utf-8')).hexdigest()
-    return "#"+color[-6:]
+    seed = hashlib.sha1(str(number).encode('utf-8')).hexdigest()
+    value = seed[-6:]
+    color = tuple(int(value[i:i+2], 16) for i in range(0, 6, 2))
+    return color
 
 
 def draw_objs(img, objs):
-    draw = ImageDraw.Draw(img)
     for obj in objs:
-        color = colorize(obj.id)
-        bbox = obj.bbox
-        draw.rectangle([(bbox.xmin, bbox.ymin), (bbox.xmax, bbox.ymax)],
-                       outline=color)
-        draw.text((bbox.xmin + 10, bbox.ymin + 10),
-                  'id: %d\nlabel: %s\nscore: %.2f' % (
-                      obj.id, obj.label, obj.score),
-                  fill=color)
+        (height, width, _) = img.shape
+
+        xmin = int(obj[-4]*width)
+        xmin = 0 if xmin < 0 else xmin
+        xmin = width if xmin > width else xmin
+
+        ymin = int(obj[-3]*height)
+        ymin = 0 if ymin < 0 else ymin
+        ymin = height if ymin > height else ymin
+
+        xmax = int(obj[-2]*width)
+        xmax = 0 if xmax < 0 else xmax
+        xmax = width if xmax > width else xmax
+
+        ymax = int(obj[-1]*height)
+        ymax = 0 if ymax < 0 else ymax
+        ymax = height if ymax > height else ymax
+
+        color = colorize(obj[0])
+        img = cv.rectangle(img, (xmin, ymin), (xmax, ymax), color, 1)
+        img = cv.putText(img, 'id: %d' % (obj[0]), (xmin+10, ymin+10),
+                         cv.FONT_HERSHEY_SIMPLEX, 0.3, color, 1, cv.LINE_AA)
+        img = cv.putText(img, 'label: %s' % (obj[1]), (xmin+10, ymin+20),
+                         cv.FONT_HERSHEY_SIMPLEX, 0.3, color, 1, cv.LINE_AA)
+        img = cv.putText(img, 'score: %.2f' % (obj[3]), (xmin+10, ymin+30),
+                         cv.FONT_HERSHEY_SIMPLEX, 0.3, color, 1, cv.LINE_AA)
+
+    return img
 
 
-def draw_box(img, bbox):
-    draw = ImageDraw.Draw(img)
-    for box in bbox:
-        draw.rectangle([(box[0], box[1]), (box[2], box[3])],
-                       outline='red')
-
-
-def draw_point(img, point, color):
-    draw = ImageDraw.Draw(img)
-    (x, y) = point
-    draw.rectangle([(x-2, y-2), (x+2, y+2)],
-                   outline=color, fill=color)
+def draw_box(img, box):
+    color = (0, 0, 255)
+    [xmin, ymin, xmax, ymax] = box
+    img = cv.rectangle(img, (xmin, ymin), (xmax, ymax), color, 1)
+    return img

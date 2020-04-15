@@ -1,49 +1,28 @@
 import os
 import cv2 as cv
 
-from utils import camera, image
+from utils import image
 from src import humandetection
 
 VIDEO1 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/chaplin.mp4")
+    os.path.abspath(__file__)), "../video/chaplin.mp4")
 VIDEO2 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/gta.mp4")
+    os.path.abspath(__file__)), "../video/gta.mp4")
 VIDEO3 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/MOT17-05-SDP.mp4")
+    os.path.abspath(__file__)), "../video/MOT17-05-SDP.mp4")
 VIDEO4 = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "../data/video/MOT17-09-FRCNN.mp4")
+    os.path.abspath(__file__)), "../video/MOT17-09-FRCNN.mp4")
 
 
-def test_with_camera():
+def test_with_video(video_id):
     hd = humandetection.HumanDetection(0.7)
-    cam = camera.Camera()
-    stream = cam.get_stream()
-    print("You can press Q button to terminate the process!")
-
-    while True:
-        img = stream.get()
-
-        img = image.convert_cv_to_pil(img)
-        objs = hd.predict(img)
-        image.draw_objs(img, objs)
-        img = image.convert_pil_to_cv(img)
-
-        cv.imshow("Debug", img)
-        if cv.waitKey(10) & 0xFF == ord('q'):
-            break
-
-    cam.terminate()
-
-
-def test_with_video(id):
-    hd = humandetection.HumanDetection(0.7)
-    if id == 1:
+    if video_id == 1:
         video = VIDEO1
-    if id == 2:
+    if video_id == 2:
         video = VIDEO2
-    if id == 3:
+    if video_id == 3:
         video = VIDEO3
-    if id == 4:
+    if video_id == 4:
         video = VIDEO4
     cap = cv.VideoCapture(video)
 
@@ -52,17 +31,15 @@ def test_with_video(id):
 
     while(cap.isOpened()):
         ret, frame = cap.read()
-        if ret == True:
-            cv_img = cv.resize(frame, (300, 300))
-            pil_img = image.convert_cv_to_pil(cv_img)
-            objs = hd.predict(cv_img)
-            image.draw_objs(pil_img, objs)
-            img = image.convert_pil_to_cv(pil_img)
+        if ret != True:
+            break
 
-            cv.imshow('Video', img)
-            if cv.waitKey(10) & 0xFF == ord('q'):
-                break
-        else:
+        img = image.resize(frame, hd.input_shape)
+        objs = hd.predict(img)
+        frame = image.draw_objs(frame, objs)
+
+        cv.imshow('Video', frame)
+        if cv.waitKey(10) & 0xFF == ord('q'):
             break
 
     cap.release()
