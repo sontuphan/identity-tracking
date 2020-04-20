@@ -20,24 +20,13 @@ EDGE_MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 LOGS_DIR = './logs/'
 
 
-def formaliza_data(obj, frame):
+def formalize_data(obj, frame):
     (height, width, _) = frame.shape
 
-    xmin = int(obj[-4]*width)
-    xmin = 0 if xmin < 0 else xmin
-    xmin = width if xmin > width else xmin
-
-    ymin = int(obj[-3]*height)
-    ymin = 0 if ymin < 0 else ymin
-    ymin = height if ymin > height else ymin
-
-    xmax = int(obj[-2]*width)
-    xmax = 0 if xmax < 0 else xmax
-    xmax = width if xmax > width else xmax
-
-    ymax = int(obj[-1]*height)
-    ymax = 0 if ymax < 0 else ymax
-    ymax = height if ymax > height else ymax
+    xmin = min(width, max(0, int(obj[-4]*width)))
+    ymin = min(height, max(0, int(obj[-3]*height)))
+    xmax = min(width, max(0, int(obj[-2]*width)))
+    ymax = min(height, max(0, int(obj[-1]*height)))
 
     box = np.array([xmin, ymin, xmax, ymax], dtype=np.int32)
     if xmin >= xmax or ymin >= ymax:
@@ -256,10 +245,8 @@ class Inference:
         differentials = np.array([])
         indice = []
         encodings = []
-        ious = []
         for index, box in enumerate(bboxes):
             iou = self.iou(self.prev_bbox, box)
-            ious.append(iou)
             if iou > 0.5:
                 img = imgs[index]
                 encoding = self.infer(img)

@@ -6,7 +6,7 @@ from random import randint
 
 from utils import image
 from src.humandetection import HumanDetection
-from src.tracker import Tracker, Inference, formaliza_data
+from src.tracker import Tracker, Inference, formalize_data
 from src.dataset import Dataset
 
 VIDEO0 = os.path.join(os.path.dirname(
@@ -90,13 +90,13 @@ def predict():
             obj_id = 0
             if len(objs) <= obj_id:
                 continue
-            obj_img, _ = formaliza_data(objs[obj_id], img)
+            obj_img, _ = formalize_data(objs[obj_id], img)
             obj_imgs = np.array([obj_img])
             prev_vector = tracker.extract_features(obj_imgs)
         else:
             obj_imgs_batch = []
             for obj in objs:
-                obj_img, _ = formaliza_data(obj, img)
+                obj_img, _ = formalize_data(obj, img)
                 obj_imgs_batch.append(obj_img)
             obj_imgs_batch = np.array(obj_imgs_batch)
 
@@ -168,14 +168,14 @@ def infer():
             obj_id = 0
             if len(objs) <= obj_id:
                 continue
-            obj_img, box = formaliza_data(objs[obj_id], img)
+            obj_img, box = formalize_data(objs[obj_id], img)
             inference.set_anchor(obj_img, box)
         else:
             bboxes_batch = []
             obj_imgs_batch = []
 
             for obj in objs:
-                obj_img, box = formaliza_data(obj, img)
+                obj_img, box = formalize_data(obj, img)
                 bboxes_batch.append(box)
                 obj_imgs_batch.append(obj_img)
 
