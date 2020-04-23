@@ -80,8 +80,7 @@ class Tracker:
 
         # Setup logs (tensorboard)
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        train_log_dir = LOGS_DIR + 'triplets/' + current_time + '/train'
-        self.train_log_writer = tf.summary.create_file_writer(train_log_dir)
+        self.train_log_dir = LOGS_DIR + 'triplets/' + current_time + '/train'
 
     @tf.function
     def loss_function(self, afs, pfs, nfs):
@@ -106,6 +105,9 @@ class Tracker:
         return afs, pfs, nfs
 
     def train(self, dataset, epochs=10):
+        # Create a logs writer
+        train_log_writer = tf.summary.create_file_writer(self.train_log_dir)
+        # Start training
         for epoch in range(epochs):
             start = time.time()
 
@@ -124,7 +126,7 @@ class Tracker:
                         nis, ((self.batch_size,) + self.image_shape + (3,)))
                     self.train_step(ais, pis, nis)
                     # Logs
-                    with self.train_log_writer.as_default():
+                    with train_log_writer.as_default():
                         tf.summary.scalar(
                             'epoch'+str(epoch),
                             self.loss_metric.result(),
@@ -191,7 +193,7 @@ class Inference:
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
         self.confidence = 0.7
-        self.threshold = 35
+        self.threshold = 50
         self.prev_encoding = None
         self.prev_bbox = None
 

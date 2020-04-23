@@ -20,7 +20,7 @@ VIDEO9 = os.path.join(os.path.dirname(
 
 
 def get_video():
-    cap = cv.VideoCapture(VIDEO5)
+    cap = cv.VideoCapture(VIDEO7)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
@@ -47,7 +47,7 @@ def train():
     dataset = Dataset(image_shape=tracker.image_shape,
                       batch_size=tracker.batch_size)
     pipeline = dataset.pipeline()
-    tracker.train(pipeline, 10)
+    tracker.train(pipeline, 5)
 
 
 def convert():
@@ -73,7 +73,8 @@ def predict():
         # Convert to RGB
         img = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
         # Gray scale situtation
-        # img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+        # img = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+        # img = cv.cvtColor(img, cv.COLOR_GRAY2RGB)
 
         start = time.time()
         print("======================================")
@@ -152,6 +153,9 @@ def infer():
             break
         # Convert to RGB
         img = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+        # Convert to GRAY
+        # img = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+        # img = cv.cvtColor(img, cv.COLOR_GRAY2RGB)
 
         start = time.time()
         print("======================================")
